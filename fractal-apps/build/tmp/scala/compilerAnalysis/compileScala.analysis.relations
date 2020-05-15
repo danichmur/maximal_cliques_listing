@@ -1,0 +1,35 @@
+products:
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-apps/build/classes/scala/main/br/ufmg/cs/systems/fractal/apps/MyMotifsApp$$anonfun$1.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-apps/build/classes/scala/main/br/ufmg/cs/systems/fractal/apps/MyMotifsApp$$anonfun$2.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-apps/build/classes/scala/main/br/ufmg/cs/systems/fractal/apps/MyMotifsApp$$anonfun$3.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-apps/build/classes/scala/main/br/ufmg/cs/systems/fractal/apps/MyMotifsApp$$anonfun$main$1.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-apps/build/classes/scala/main/br/ufmg/cs/systems/fractal/apps/MyMotifsApp$$anonfun$main$2$$anonfun$apply$1.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-apps/build/classes/scala/main/br/ufmg/cs/systems/fractal/apps/MyMotifsApp$$anonfun$main$2.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-apps/build/classes/scala/main/br/ufmg/cs/systems/fractal/apps/MyMotifsApp$.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-apps/build/classes/scala/main/br/ufmg/cs/systems/fractal/apps/MyMotifsApp.class
+binary dependencies:
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Library/Java/JavaVirtualMachines/adoptopenjdk-8.jdk/Contents/Home/jre/lib/rt.jar
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/.gradle/caches/modules-2/files-2.1/org.apache.hadoop/hadoop-common/2.6.5/775c6ba9b08cf8ec42e27ea0730b69cc990c69ea/hadoop-common-2.6.5.jar
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/.gradle/caches/modules-2/files-2.1/org.apache.spark/spark-core_2.11/2.2.0/f1e6dbc3b085eb4f889b903f452afcfc43aa08c6/spark-core_2.11-2.2.0.jar
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/.gradle/caches/modules-2/files-2.1/org.scala-lang/scala-library/2.11.11/e283d2b7fde6504f6a86458b1f6af465353907cc/scala-library-2.11.11.jar
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/java/main/br/ufmg/cs/systems/fractal/aggregation/EndAggregationFunction.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/java/main/br/ufmg/cs/systems/fractal/computation/Computation.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/java/main/br/ufmg/cs/systems/fractal/pattern/Pattern.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/java/main/br/ufmg/cs/systems/fractal/subgraph/VertexInducedSubgraph.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/scala/main/br/ufmg/cs/systems/fractal/FractalContext$.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/scala/main/br/ufmg/cs/systems/fractal/FractalContext.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/scala/main/br/ufmg/cs/systems/fractal/FractalGraph.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/scala/main/br/ufmg/cs/systems/fractal/Fractoid.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/scala/main/br/ufmg/cs/systems/fractal/util/Logging$.class
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> /Users/danielmuraveyko/fractal/fractal-core/build/classes/scala/main/br/ufmg/cs/systems/fractal/util/Logging.class
+source dependencies:
+external dependencies:
+class names:
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> br.ufmg.cs.systems.fractal.apps.MyMotifsApp
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> br.ufmg.cs.systems.fractal.apps.MyMotifsApp$
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> br.ufmg.cs.systems.fractal.apps.MyMotifsApp$$anonfun$1
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> br.ufmg.cs.systems.fractal.apps.MyMotifsApp$$anonfun$2
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> br.ufmg.cs.systems.fractal.apps.MyMotifsApp$$anonfun$3
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> br.ufmg.cs.systems.fractal.apps.MyMotifsApp$$anonfun$main$1
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> br.ufmg.cs.systems.fractal.apps.MyMotifsApp$$anonfun$main$2
+   /Users/danielmuraveyko/fractal/fractal-apps/src/main/scala/br/ufmg/cs/systems/fractal/apps/MyFractalApp.scala -> br.ufmg.cs.systems.fractal.apps.MyMotifsApp$$anonfun$main$2$$anonfun$apply$1
