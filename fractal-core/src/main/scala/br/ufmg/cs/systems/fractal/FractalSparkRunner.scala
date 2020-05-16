@@ -53,30 +53,7 @@ class CliquesOptApp(val fractalGraph: FractalGraph,
                     explorationSteps: Int) extends FractalSparkApp {
   def execute: Unit = {
 
-    var s : Set[Int] = Set(39,129,180,138,11,14,24,185,201,63,215,17,204,12,38,203,228,94,192,100,217,112,139,77,131,59,
-      113,118,40,186,96,81,82,216,28,29,98,222,30,110,214,83,49,78,109,178,218,84,122,115,187,76,243,182,208,73,181,227,
-      237,221,7,8,223,88,244,34,4,134,193,80,105,65,35,104,111,175,202,74,238,18,236,103,199,99,224,41,53,46,213,220,62,
-      33,6,69,3,135,123,26,5,13,52,189,87,119,239,179,64,75,188,133,205,45,132,70,183,108,10,43,61,47,97,116,48,117,240,
-      27,0,42,210,209,234,68,170,146,140,168,263,275,252,251,248,144,274,164,259,143,174,153,157,152,279,269,253,169,158,
-      262,154,273,148,258,245,249,257,147,255,17,167,151,150,272,278,256,145,166,250,271,173,19,34)
-
-    val vpred = new VertexFilterFunc[VertexInducedSubgraph] {
-      override def test(v: Vertex[VertexInducedSubgraph]): Boolean = {
-        //  v.getVertexLabel() < 170
-        //true;
-        !s.contains(v.getVertexId)
-      }
-    }
-
-    val epred = new EdgeFilterFunc[EdgeInducedSubgraph] {
-      override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
-        !(s.contains(e.getSourceId) || s.contains(e.getDestinationId))
-      }
-    }
-
-
     val cliquesRes = fractalGraph.cliquesKClist(explorationSteps + 1).
-      //set("efilter", epred).
       set ("comm_strategy", commStrategy).
       set ("num_partitions", numPartitions).
       explore(explorationSteps)
@@ -90,8 +67,6 @@ class CliquesOptApp(val fractalGraph: FractalGraph,
       s" graph=${fractalGraph} " +
       s" numValidSubgraphs=${cliquesRes.numValidSubgraphs()} elapsed=${elapsed}"
       )
-
-    cliquesRes.saveSubgraphsAsTextFile("/Users/danielmuraveyko/Desktop/test")
   }
 }
 
@@ -238,106 +213,7 @@ object FractalSparkRunner {
     (result, t1 - t0)
   }
 
-  def main(args : Array[String]): Unit = {
-   main3(args);
-  }
-
-  def main3(args: Array[String]) {
-    // args
-    var i = 0
-    val graphClass = "br.ufmg.cs.systems.fractal.graph.BasicMainGraph"
-
-    i += 1
-    //    val graphPath = "/Users/danielmuraveyko/fractal/data/cliques_dm.graph"
-    //    20,4
-    //    4,119
-    //    5,46
-    //    6,40
-    //    7,4
-    //    8,18
-    //    9,9
-    //    13,3
-    val graphPath = "/Users/danielmuraveyko/Desktop/el_6.csv"
-    i += 1
-    val algorithm = "cliquesopt"
-    i += 1
-    val commStrategy = "scratch"
-    i += 1
-    val numPartitions = 1
-    i += 1
-    val explorationSteps = 19
-    i += 1
-    val logLevel = "info"
-
-    val conf = new SparkConf().setMaster("local[4]").setAppName("MyMotifsApp")
-    val sc = new SparkContext(conf)
-
-    if (!sc.isLocal) {
-      // TODO: this is ugly but have to make sure all spark executors are up by
-      // the time we start executing fractal applications
-      Thread.sleep(10000)
-    }
-
-    val fc = new FractalContext(sc, logLevel)
-    val fractalGraph = fc.textFile (graphPath, graphClass = graphClass)
-
-    val app = algorithm.toLowerCase match {
-      case "vsubgraphs" =>
-        new VSubgraphsApp(fractalGraph, commStrategy,
-          numPartitions, explorationSteps)
-      case "motifs" =>
-        new MotifsApp(fractalGraph, commStrategy,
-          numPartitions, explorationSteps)
-      case "cliques" =>
-        new CliquesApp(fractalGraph, commStrategy,
-          numPartitions, explorationSteps)
-      case "cliquesopt" =>
-        new CliquesOptApp(fractalGraph, commStrategy,
-          numPartitions, explorationSteps)
-      case "maximalcliques" =>
-        new MaximalCliquesApp(fractalGraph, commStrategy,
-          numPartitions, explorationSteps)
-      case "quasicliques" =>
-        i += 1
-        val minDensity = args(i).toDouble
-        new QuasiCliquesApp(fractalGraph, commStrategy, numPartitions,
-          explorationSteps, minDensity)
-      case "fsm" =>
-        i += 1
-        val support = args(i).toInt
-        new FSMApp(fractalGraph, commStrategy, numPartitions,
-          explorationSteps, support)
-      case "kws" =>
-        i += 1
-        val queryWords = args.slice(i, args.length)
-        new KeywordSearchApp(fractalGraph, commStrategy,
-          numPartitions, explorationSteps, queryWords)
-      case "gquerying" =>
-        i += 1
-        val subgraphPath = args(i)
-        new GQueryingApp(fractalGraph, commStrategy,
-          numPartitions, explorationSteps, subgraphPath)
-      case appName =>
-        throw new RuntimeException(s"Unknown app: ${appName}")
-    }
-
-    i += 1
-    while (i < args.length) {
-      println (s"Found config=${args(i)}")
-      val kv = args(i).split(":")
-      if (kv.length == 2) {
-        fractalGraph.set (kv(0), kv(1))
-      }
-      i += 1
-    }
-
-    app.execute
-
-    fc.stop()
-    sc.stop()
-  }
-
-  def main2(args: Array[String]) {
+  def main(args: Array[String]) {
     // args
     var i = 0
     val graphClass = args(i) match {

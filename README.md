@@ -1,1 +1,3 @@
-# maximal_cliques_listing
+# Maximal Cliques Listing
+
+About Fractal: https://github.com/dccspeed/fractal
