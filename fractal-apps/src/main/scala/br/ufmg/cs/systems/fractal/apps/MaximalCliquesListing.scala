@@ -1,8 +1,10 @@
 package br.ufmg.cs.systems.fractal.apps
 
+import br.ufmg.cs.systems.fractal.graph.{Edge, Vertex}
 import br.ufmg.cs.systems.fractal.{CliquesOptApp, _}
 import br.ufmg.cs.systems.fractal.pattern.Pattern
-import br.ufmg.cs.systems.fractal.util.Logging
+import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, ResultSubgraph, VertexInducedSubgraph}
+import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging, VertexFilterFunc}
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.graphx.{EdgeDirection, EdgeTriplet, GraphLoader, PartitionStrategy, VertexId}
 import org.apache.spark.storage.StorageLevel
@@ -13,28 +15,26 @@ import scala.collection.immutable.IntMap
 case class CliquesList(val fractalGraph: FractalGraph,
                   commStrategy: String,
                   numPartitions: Int,
-                  explorationSteps: Int,
-                  outPath: String
+                  explorationSteps: Int
 ) extends FractalSparkApp {
+  var foundedCliques : List[ResultSubgraph[_]] = List()
+  var s : Set[Int] = Set()
+
   def execute: Unit = {
 
-    //TODO filters
+//    val vpred = new VertexFilterFunc[VertexInducedSubgraph] {
+//      override def test(v: Vertex[VertexInducedSubgraph]): Boolean = {
+//        //  v.getVertexLabel() < 170
+//        //true;
+//        !s.contains(v.getVertexId)
+//      }
+//    }
 
-    //      var s : Set[Int] = Set(vertices)
-    //
-    //      val vpred = new VertexFilterFunc[VertexInducedSubgraph] {
-    //        override def test(v: Vertex[VertexInducedSubgraph]): Boolean = {
-    //          //  v.getVertexLabel() < 170
-    //          //true;
-    //          !s.contains(v.getVertexId)
-    //        }
-    //      }
-    //
-    //      val epred = new EdgeFilterFunc[EdgeInducedSubgraph] {
-    //        override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
-    //          !(s.contains(e.getSourceId) || s.contains(e.getDestinationId))
-    //        }
-    //      }
+    val epred = new EdgeFilterFunc[EdgeInducedSubgraph] {
+      override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
+        !(s.contains(e.getSourceId) || s.contains(e.getDestinationId))
+      }
+    }
 
 
     val cliquesRes = fractalGraph.cliquesKClist(explorationSteps + 1).
@@ -43,7 +43,7 @@ case class CliquesList(val fractalGraph: FractalGraph,
       set ("num_partitions", numPartitions).
       explore(explorationSteps)
 
-    val (accums, elapsed) = FractalSparkRunner.time {
+    val (_, elapsed) = FractalSparkRunner.time {
       cliquesRes.compute()
     }
 
@@ -52,8 +52,12 @@ case class CliquesList(val fractalGraph: FractalGraph,
       s" graph=${fractalGraph} " +
       s" numValidSubgraphs=${cliquesRes.numValidSubgraphs()} elapsed=${elapsed}"
     )
+    foundedCliques = cliquesRes.collectSubgraphs()
+  }
 
-    cliquesRes.saveSubgraphsAsTextFile(outPath)
+  def findCliques(): List[ResultSubgraph[_]] = {
+    execute
+    foundedCliques
   }
 }
 
@@ -74,11 +78,14 @@ object MaximalCliquesListing extends Logging {
     val commStrategy = "scratch"
     val numPartitions = 1
     val explorationSteps = kcore.head._2 - 1 //k - 1 = clique size
+    fractalGraph.set("cliquesize", explorationSteps)
+
     val outPath = "/Users/danielmuraveyko/Desktop/test"
 
-    val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, outPath)
+    val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps)
 
-    app.execute
+    val subgraphs = app.findCliques()
+    logInfo(subgraphs.toString)
 
     fc.stop()
     sc.stop()

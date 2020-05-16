@@ -297,8 +297,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       var lastStepConsumer: LastStepConsumer[S] = _
 
       def apply(iter: SubgraphEnumerator[S], c: Computation[S]): Long = {
+        val config = c.getConfig()
+        val size = config.getInteger("cliquesize", 1)
         if (c.getDepth() == 0) {
-          val config = c.getConfig()
+
           val execEngine = c.getExecutionEngine().
             asInstanceOf[SparkFromScratchEngine[S]]
 
@@ -323,7 +325,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           lastStepConsumer = new LastStepConsumer[S]()
 
           var start = System.currentTimeMillis
-          val ret = processCompute(iter, c)
+
+          val ret = processCompute(iter, c, size)
           var elapsed = System.currentTimeMillis - start
 
           logInfo (s"WorkStealingMode internal=${config.internalWsEnabled()}" +
@@ -335,9 +338,12 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           // setup work-stealing system
           start = System.currentTimeMillis
           if (config.wsEnabled()) {
+            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): Long = {
+              processCompute(iter, c, size)
+            }
             val gtagExecutorActor = execEngine.slaveActorRef
             workStealingSys = new WorkStealingSystem[S](
-              processCompute, gtagExecutorActor, new ConcurrentLinkedQueue())
+              processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
 
             workStealingSys.workStealingCompute(c)
           }
@@ -348,22 +354,24 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           ret
         } else {
-          processCompute(iter, c)
+          processCompute(iter, c, size)
         }
       }
 
       private def hasNextComputation(iter: SubgraphEnumerator[S],
-          c: Computation[S], nextComp: Computation[S]): Long = {
+          c: Computation[S], nextComp: Computation[S], size: Int): Long = {
         var currentSubgraph: S = null.asInstanceOf[S]
         var addWords = 0L
         var subgraphsGenerated = 0L
         var ret = 0L
+       // var cc = config
 
         breakable { while (iter.hasNext) {
           val t = iter.prefix.size() + iter.getAdditionalSize
-//          if (t != 0 /*first computation*/ && t < 31) {
-//            break
-//          }
+          if (t != 0 /*first computation*/ && t < size) {
+            //TODO: set active = false?
+            break
+          }
           val nextEnum = iter.extend()
           currentSubgraph = iter.getSubgraph()
           addWords += 1
@@ -438,12 +446,15 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         subgraphsGenerated
       }
 
-      private def processCompute(iter: SubgraphEnumerator[S],
-        c: Computation[S]): Long = {
+      private def processCompute(
+        iter: SubgraphEnumerator[S],
+        c: Computation[S],
+        size: Int
+      ): Long = {
         val nextComp = c.nextComputation()
 
         if (nextComp != null) {
-          hasNextComputation(iter, c, nextComp)
+          hasNextComputation(iter, c, nextComp, size)
         } else {
           lastComputation(iter, c)
         }
