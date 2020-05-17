@@ -274,16 +274,11 @@ case class Fractoid [S <: Subgraph : ClassTag](
    * @param path hdfs(hdfs://) or local(file://) path
    */
   def saveSubgraphsAsTextFile(path: String): Unit = {
-//    val t = subgraphs.collect.toList
-//    val e0 = internalSubgraphs.collect.toList
-//    val e = internalSubgraphs.collect().mkString(" *********** ")
-//    val e1 = masterEngine.aggAccums//.collect().mkString(" ******** ")
-//    mapped_t.saveAsTextFile (path)
     subgraphs.map(emb => emb.words.mkString(" ")).saveAsTextFile(path)
   }
 
-  def collectSubgraphs(): List[ResultSubgraph[_]] = {
-    subgraphs.collect.toList
+  def collectSubgraphs(): List[Set[_]] = {
+    subgraphs.collect.toList.map(x => x.words.toSet)
   }
 
   def explore(n: Int): Fractoid[S] = {

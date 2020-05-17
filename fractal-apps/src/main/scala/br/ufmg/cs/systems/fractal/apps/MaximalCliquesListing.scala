@@ -10,35 +10,27 @@ import org.apache.spark.graphx.{EdgeDirection, EdgeTriplet, GraphLoader, Partiti
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkConf, SparkContext}
 
-import scala.collection.immutable.IntMap
-
-case class CliquesList(val fractalGraph: FractalGraph,
-                  commStrategy: String,
-                  numPartitions: Int,
-                  explorationSteps: Int
+case class CliquesList(
+                        fractalGraph: FractalGraph,
+                        commStrategy: String,
+                        numPartitions: Int,
+                        explorationSteps: Int,
+                        readyCliques: List[Set[Int]]
 ) extends FractalSparkApp {
-  var foundedCliques : List[ResultSubgraph[_]] = List()
-  var s : Set[Int] = Set()
+  var foundedCliques : List[Set[_]] = List()
 
   def execute: Unit = {
 
-//    val vpred = new VertexFilterFunc[VertexInducedSubgraph] {
-//      override def test(v: Vertex[VertexInducedSubgraph]): Boolean = {
-//        //  v.getVertexLabel() < 170
-//        //true;
-//        !s.contains(v.getVertexId)
-//      }
-//    }
-
-    val epred = new EdgeFilterFunc[EdgeInducedSubgraph] {
-      override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
-        !(s.contains(e.getSourceId) || s.contains(e.getDestinationId))
+    def epredCallback(cliques : List[Set[Int]]) = {
+      new EdgeFilterFunc[EdgeInducedSubgraph] {
+        override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
+          !cliques.exists(c => c.contains(e.getSourceId) && c.contains(e.getDestinationId))
+        }
       }
     }
 
-
     val cliquesRes = fractalGraph.cliquesKClist(explorationSteps + 1).
-      //set("efilter", epred).
+      set("efilter", epredCallback(readyCliques)).
       set ("comm_strategy", commStrategy).
       set ("num_partitions", numPartitions).
       explore(explorationSteps)
@@ -55,14 +47,19 @@ case class CliquesList(val fractalGraph: FractalGraph,
     foundedCliques = cliquesRes.collectSubgraphs()
   }
 
-  def findCliques(): List[ResultSubgraph[_]] = {
+  def findCliques(): List[Set[_]] = {
     execute
     foundedCliques
   }
 }
 
-
 object MaximalCliquesListing extends Logging {
+
+  def toInt(x: Any): Option[Int] = x match {
+    case i: Int => Some(i)
+    case _ => None
+  }
+
   def main(args: Array[String]): Unit = {
 
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
@@ -77,15 +74,25 @@ object MaximalCliquesListing extends Logging {
     val fractalGraph = fc.textFile(graphPath, graphClass = graphClass)
     val commStrategy = "scratch"
     val numPartitions = 1
-    val explorationSteps = kcore.head._2 - 1 //k - 1 = clique size
+    var explorationSteps = kcore.head._2 - 1 //k - 1 = clique size
     fractalGraph.set("cliquesize", explorationSteps)
 
     val outPath = "/Users/danielmuraveyko/Desktop/test"
+    var cliques : List[Set[Int]] = List()
 
-    val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps)
+    val N = 7 //cliques count
 
-    val subgraphs = app.findCliques()
-    logInfo(subgraphs.toString)
+    while (cliques.size < N && explorationSteps > 1) {
+      val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliques)
+      explorationSteps = explorationSteps - 1 //TODO go by kcore?
+      val subgraphs = app.findCliques().map(x => x.flatMap(toInt))
+      cliques = cliques ++ subgraphs
+      if (cliques.size > N) {
+        cliques = cliques.slice(0, N)
+      }
+    }
+
+    logInfo(cliques.toString)
 
     fc.stop()
     sc.stop()
