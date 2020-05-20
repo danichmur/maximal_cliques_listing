@@ -514,7 +514,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
     //ClosureCleaner.clean(filter)
     val filterComp = emptyComputation(Primitive.F).
       //withExpandCompute((e,c) => c.bypass(e)).
-      withShouldBypass(true).
+      withShouldBypass(false).
       withFilter(filter)
     val result = handleNextResult(filterComp)
     logInfo (s"Filter before: ${this} after: ${result}")

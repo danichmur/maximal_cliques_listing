@@ -1,5 +1,6 @@
 package br.ufmg.cs.systems.fractal.apps
 
+import br.ufmg.cs.systems.fractal.computation.Computation
 import br.ufmg.cs.systems.fractal.graph.{Edge, Vertex}
 import br.ufmg.cs.systems.fractal.{CliquesOptApp, _}
 import br.ufmg.cs.systems.fractal.pattern.Pattern
@@ -29,7 +30,12 @@ case class CliquesList(
       }
     }
 
+    val vfilter = (v : VertexInducedSubgraph, c : Computation[VertexInducedSubgraph]) => {
+      true
+    }
+
     val cliquesRes = fractalGraph.cliquesKClist(explorationSteps + 1).
+      //filter(vfilter).
       set("efilter", epredCallback(readyCliques)).
       set ("comm_strategy", commStrategy).
       set ("num_partitions", numPartitions).
@@ -39,7 +45,7 @@ case class CliquesList(
       cliquesRes.compute()
     }
 
-    logInfo (s"CliquesOptApp comm=${commStrategy}" +
+    logInfo (s"CliquesList comm=${commStrategy}" +
       s" numPartitions=${numPartitions} explorationSteps=${explorationSteps}" +
       s" graph=${fractalGraph} " +
       s" numValidSubgraphs=${cliquesRes.numValidSubgraphs()} elapsed=${elapsed}"
@@ -65,28 +71,31 @@ object MaximalCliquesListing extends Logging {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
 
     val sc = new SparkContext(conf)
-    val kcore = Kcore.countKcore(sc, "/Users/danielmuraveyko/Desktop/for_kcore");
+    val kcore = Kcore.countKcore(sc, "/Users/danielmuraveyko/Desktop/for_kcore").map(_._2).distinct
 
     val fc = new FractalContext(sc)
-    val graphPath = "/Users/danielmuraveyko/Desktop/el_3.csv"
+    val graphPath = "/Users/danielmuraveyko/Desktop/el_8.csv"
 
     val graphClass = "br.ufmg.cs.systems.fractal.graph.BasicMainGraph"
     val fractalGraph = fc.textFile(graphPath, graphClass = graphClass)
     val commStrategy = "scratch"
     val numPartitions = 1
-    var explorationSteps = kcore.head._2 - 1 //k - 1 = clique size
-    fractalGraph.set("cliquesize", explorationSteps)
+    var explorationSteps = kcore.head - 1
 
     val outPath = "/Users/danielmuraveyko/Desktop/test"
     var cliques : List[Set[Int]] = List()
 
-    val N = 7 //cliques count
+    val N = 15 //cliques count
+    while (cliques.size < N && explorationSteps > 2) {
 
-    while (cliques.size < N && explorationSteps > 1) {
+      fractalGraph.set("cliquesize", explorationSteps)
+
       val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliques)
-      explorationSteps = explorationSteps - 1 //TODO go by kcore?
+      explorationSteps -= 1
       val subgraphs = app.findCliques().map(x => x.flatMap(toInt))
+      logInfo(s"explorationSteps: ${explorationSteps} done")
       cliques = cliques ++ subgraphs
+
       if (cliques.size > N) {
         cliques = cliques.slice(0, N)
       }

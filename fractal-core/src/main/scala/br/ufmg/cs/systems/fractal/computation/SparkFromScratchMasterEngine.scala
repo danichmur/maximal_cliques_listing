@@ -370,6 +370,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val t = iter.prefix.size() + iter.getAdditionalSize
           if (t != 0 /*first computation*/ && t < size) {
             //TODO: set active = false?
+//            addWords = 0
+//            subgraphsGenerated = 0
+//            ret = 0
             break
           }
           val nextEnum = iter.extend()

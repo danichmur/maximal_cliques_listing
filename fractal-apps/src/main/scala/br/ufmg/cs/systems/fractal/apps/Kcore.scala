@@ -51,7 +51,7 @@ object Kcore extends Logging{
 
     val startTimeMillis = System.currentTimeMillis()
 
-    // TODO: edgeListFile input format completely different from Fractal input format :(
+    // TODO: edgeListFile input format is completely different from Fractal input format :(
     val ygraph=GraphLoader.edgeListFile(
       sc,
       path,
@@ -69,7 +69,7 @@ object Kcore extends Logging{
 
     val minGraph = mgraph.pregel(initialMsg, maxIter, EdgeDirection.Either)(vprog,sendMsg,mergeMsg)
 
-    val kcores = minGraph.vertices.zipWithIndex.sortBy(e => e._1._2._1).map(e => (e._1._1, e._1._2._1)).collect.toList
+    val kcores = minGraph.vertices.zipWithIndex.sortBy(e => -e._1._2._1).map(e => (e._1._1, e._1._2._1)).collect.toList
     //.sortBy(l => l._1._2._1).foreach{case (e) => println(e._1._1 + "," + e._1._2._1)}
 
     val endTimeMillis = System.currentTimeMillis()
