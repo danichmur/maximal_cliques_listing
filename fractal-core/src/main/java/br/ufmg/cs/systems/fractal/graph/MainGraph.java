@@ -21,6 +21,8 @@ public interface MainGraph<V,E> {
 
     Vertex getVertex(int vertexId);
 
+    int getVertexId(int vertexIdx);
+
     int getNumberVertices();
 
     Edge[] getEdges();

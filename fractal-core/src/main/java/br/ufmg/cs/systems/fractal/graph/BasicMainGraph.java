@@ -38,7 +38,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
 
    private static final int INITIAL_ARRAY_SIZE = 4096;
    
-   protected IntIntMap vertexIdMap = 
+   protected IntIntMap vertexIdMap =
       HashIntIntMaps.getDefaultFactory().withDefaultValue(-1).newMutableMap();
 
    protected Vertex<V>[] vertexIndexF;
@@ -545,6 +545,9 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
    public Vertex<V> getVertex(int vertexId) {
       return vertexIndexF[vertexId];
    }
+
+   @Override
+   public int getVertexId(int vertexIdx) {return vertexIdMap.get(vertexIdx);}
 
    @Override
    public int getNumberVertices() {

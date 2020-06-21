@@ -18,7 +18,8 @@ case class CliquesList(
                         explorationSteps: Int,
                         readyCliques: List[Set[Int]]
 ) extends FractalSparkApp {
-  var foundedCliques : List[Set[_]] = List()
+
+  var foundedCliques : (List[Set[Int]], List[Set[Int]]) = (List(), List())
 
   def execute: Unit = {
 
@@ -50,51 +51,53 @@ case class CliquesList(
       s" graph=${fractalGraph} " +
       s" numValidSubgraphs=${cliquesRes.numValidSubgraphs()} elapsed=${elapsed}"
     )
-    foundedCliques = cliquesRes.collectSubgraphs()
+    val cliques = cliquesRes.collectSubgraphs();
+    foundedCliques = (cliques, cliquesRes.collectSubgraphsOriginal(cliques))
   }
 
-  def findCliques(): List[Set[_]] = {
+  def findCliques(): (List[Set[Int]], List[Set[Int]]) = {
     execute
     foundedCliques
   }
 }
 
 object MaximalCliquesListing extends Logging {
-
-  def toInt(x: Any): Option[Int] = x match {
-    case i: Int => Some(i)
-    case _ => None
-  }
+ //525 v, 22415 e - 8 min
 
   def main(args: Array[String]): Unit = {
 
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
+    conf.set("spark.executor.memory", "16g")
+    conf.set("spark.driver.memory","16g")
+    val graphPath = "/Users/danielmuraveyko/Desktop/for_kcore_0"
 
     val sc = new SparkContext(conf)
-    val kcore = Kcore.countKcore(sc, "/Users/danielmuraveyko/Desktop/for_kcore").map(_._2).distinct
+    val kcore = Kcore.countKcore(sc, graphPath).map(_._2).distinct
 
     val fc = new FractalContext(sc)
-    val graphPath = "/Users/danielmuraveyko/Desktop/el_8.csv"
 
-    val graphClass = "br.ufmg.cs.systems.fractal.graph.BasicMainGraph"
-    val fractalGraph = fc.textFile(graphPath, graphClass = graphClass)
+    val graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph"
+    val fractalGraph = fc.textFile("/Users/danielmuraveyko/Desktop/for_kcore_0", graphClass = graphClass)
     val commStrategy = "scratch"
     val numPartitions = 1
-    var explorationSteps = kcore.head - 1
+    var explorationSteps = kcore.head
 
     val outPath = "/Users/danielmuraveyko/Desktop/test"
     var cliques : List[Set[Int]] = List()
+    var cliquesIdx : List[Set[Int]] = List()
 
-    val N = 15 //cliques count
-    while (cliques.size < N && explorationSteps > 2) {
+    val N = 3 //cliques count
+    while (cliques.size < N && explorationSteps >= 2) {
 
       fractalGraph.set("cliquesize", explorationSteps)
 
-      val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliques)
+      val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliquesIdx)
       explorationSteps -= 1
-      val subgraphs = app.findCliques().map(x => x.flatMap(toInt))
+      val (subgraphs, original_cliques) = app.findCliques()//.map(x => x.flatMap(toInt))
       logInfo(s"explorationSteps: ${explorationSteps} done")
-      cliques = cliques ++ subgraphs
+
+      cliques = cliques ++ original_cliques
+      cliquesIdx = cliquesIdx ++ subgraphs
 
       if (cliques.size > N) {
         cliques = cliques.slice(0, N)

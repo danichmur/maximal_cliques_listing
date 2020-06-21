@@ -369,14 +369,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         breakable { while (iter.hasNext) {
           val t = iter.prefix.size() + iter.getAdditionalSize
           if (t != 0 /*first computation*/ && t < size) {
-            //TODO: set active = false?
-//            addWords = 0
-//            subgraphsGenerated = 0
-//            ret = 0
+            addWords = 0
+            subgraphsGenerated = 0
+            ret = 0
             break
           }
           val nextEnum = iter.extend()
-          currentSubgraph = iter.getSubgraph()
+          currentSubgraph = iter.getSubgraph
           addWords += 1
           if (c.filter(currentSubgraph)) {
             subgraphsGenerated += 1

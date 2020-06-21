@@ -5,7 +5,7 @@ import br.ufmg.cs.systems.fractal.aggregation.reductions._
 import br.ufmg.cs.systems.fractal.computation._
 import br.ufmg.cs.systems.fractal.conf.{Configuration, SparkConfiguration}
 import br.ufmg.cs.systems.fractal.pattern.Pattern
-import br.ufmg.cs.systems.fractal.graph.{Vertex, Edge}
+import br.ufmg.cs.systems.fractal.graph.{Edge, MainGraph, Vertex}
 import br.ufmg.cs.systems.fractal.subgraph._
 import br.ufmg.cs.systems.fractal.util._
 import com.koloboke.collect.IntCollection
@@ -113,7 +113,9 @@ case class Fractoid [S <: Subgraph : ClassTag](
   }
 
   def compute(): Map[String,Long] = {
-    masterEngine.aggAccums.map{case (k,v) => (k, v.value.longValue)}
+    val m = masterEngine
+    val n = m
+    m.aggAccums.map{case (k,v) => (k, v.value.longValue)}
   }
 
   def numValidSubgraphs(): Long = {
@@ -277,8 +279,26 @@ case class Fractoid [S <: Subgraph : ClassTag](
     subgraphs.map(emb => emb.words.mkString(" ")).saveAsTextFile(path)
   }
 
-  def collectSubgraphs(): List[Set[_]] = {
-    subgraphs.collect.toList.map(x => x.words.toSet)
+  def collectSubgraphs(): List[Set[Int]] = {
+
+    def toInt(x: Any): Option[Int] = x match {
+      case i: Int => Some(i)
+      case _ => None
+    }
+
+    subgraphs.collect.toList.map(x => x.words.toSet.flatMap((v : Any) => toInt(v)))
+  }
+
+
+  def collectSubgraphsOriginal(idx : List[Set[Int]]): List[Set[Int]] = {
+    val graph = config.getMainGraph[MainGraph[_,_]]()
+
+    def toIntIdx(x: Any): Option[Int] = x match {
+      case i: Int => Some(graph.getVertex(i).getVertexOriginalId)
+      case _ => None
+    }
+
+    idx.map(x => x.flatMap((v : Any) => toIntIdx(v)))
   }
 
   def explore(n: Int): Fractoid[S] = {

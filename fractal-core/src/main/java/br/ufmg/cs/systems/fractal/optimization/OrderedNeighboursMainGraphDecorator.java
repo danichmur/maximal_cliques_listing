@@ -109,6 +109,11 @@ public class OrderedNeighboursMainGraphDecorator implements OrderedNeighboursMai
     }
 
     @Override
+    public int getVertexId(int vertexIdx) {
+        return 0;
+    }
+
+    @Override
     public int getNumberVertices() {
         return underlyingMainGraph.getNumberVertices();
     }

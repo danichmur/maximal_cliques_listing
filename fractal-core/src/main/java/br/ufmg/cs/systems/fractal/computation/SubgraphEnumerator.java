@@ -35,6 +35,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
    protected boolean shouldRemoveLastWord;
    
    protected AtomicBoolean active;
+   protected boolean frozen;
 
    public String computationLabel() {
       return computation.computationLabel();
@@ -43,6 +44,12 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
    public boolean isActive() {
       return active != null && active.get();
    }
+
+   public boolean isFrozen() {
+      return frozen;
+   }
+
+   public void setFrozen(boolean frozen) {this.frozen = frozen; }
 
    public SubgraphEnumerator() {
       this.rlock = new ReentrantLock();
@@ -109,6 +116,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       this.cur = wordIds.cursor();
       this.shouldRemoveLastWord = false;
       this.active = new AtomicBoolean(true);
+      this.frozen = false;
       return this;
    }
 
@@ -125,6 +133,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       iter.wordIds = this.wordIds;
       iter.shouldRemoveLastWord = false;
       iter.active = this.active;
+      iter.frozen = this.frozen;
 
       // expensive operations, only do if iterator is not empty
       if (iter.hasNext()) {
