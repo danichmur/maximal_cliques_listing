@@ -21,6 +21,9 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   // used to clear the dag
   private DagCleaner dagCleaner;
 
+  public KClistEnumerator() {
+  }
+
   @Override
   public void init(Configuration<S> config) {
     dag = HashIntObjMaps.newMutableMap();
@@ -70,9 +73,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             nextComputation().getSubgraphEnumerator();
 
     nextEnumerator.clearDag();
-//    if (prefix.size() + dag.size() < 28) {
-//      return nextEnumerator;
-//    }
+
     if (subgraph.getNumWords() == 0) {
       extendFromGraph(subgraph.getConfig().getMainGraph(), nextEnumerator.dag, u);
     } else {
@@ -83,6 +84,12 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     shouldRemoveLastWord = true;
 
     return nextEnumerator;
+  }
+
+  @Override
+  public void setForFrozen() {
+    super.setForFrozen();
+    dag = GlobalFreezeHolder.current.freezeDag;
   }
 
   /**
@@ -149,6 +156,11 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         }
       }
     }
+  }
+
+
+  public IntObjMap<IntArrayList> getDag(){
+    return dag;
   }
 
   private void clearDag() {

@@ -7,6 +7,7 @@ import br.ufmg.cs.systems.fractal.aggregation.reductions.ReductionFunction;
 import br.ufmg.cs.systems.fractal.computation.Computation;
 import br.ufmg.cs.systems.fractal.computation.MasterComputation;
 import br.ufmg.cs.systems.fractal.computation.SubgraphEnumerator;
+import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator;
 import br.ufmg.cs.systems.fractal.graph.MainGraph;
 import br.ufmg.cs.systems.fractal.optimization.OptimizationSet;
 import br.ufmg.cs.systems.fractal.optimization.OptimizationSetDescriptor;
@@ -412,7 +413,7 @@ public class Configuration<O extends Subgraph> implements Serializable {
     public SubgraphEnumerator<O> createSubgraphEnumerator(boolean bypass) {
         SubgraphEnumerator<O> senum;
         if (!bypass) {
-            senum = (SubgraphEnumerator<O>) ReflectionUtils.newInstance(subgraphEnumClass);
+            senum = new KClistEnumerator<>();//(SubgraphEnumerator<O>) ReflectionUtils.newInstance(subgraphEnumClass);
         } else {
             senum = (SubgraphEnumerator<O>) ReflectionUtils.newInstance(
                     br.ufmg.cs.systems.fractal.computation.BypassSubgraphEnumerator.class);

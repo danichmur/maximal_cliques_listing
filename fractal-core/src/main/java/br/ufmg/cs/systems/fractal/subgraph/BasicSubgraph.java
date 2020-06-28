@@ -130,6 +130,11 @@ public abstract class BasicSubgraph implements Subgraph {
    }
 
    @Override
+   public void setVertices(IntArrayList pVertices) {
+       vertices = pVertices;
+   }
+
+   @Override
    public <V> Vertex<V> vertex(int vertexId) {
       return (Vertex<V>) configuration.getMainGraph().getVertex(vertexId);
    }

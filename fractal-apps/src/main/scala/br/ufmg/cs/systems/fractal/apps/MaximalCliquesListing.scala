@@ -1,15 +1,21 @@
 package br.ufmg.cs.systems.fractal.apps
 
 import br.ufmg.cs.systems.fractal.computation.Computation
+import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolder, GlobalFreezeHolder}
 import br.ufmg.cs.systems.fractal.graph.{Edge, Vertex}
 import br.ufmg.cs.systems.fractal.{CliquesOptApp, _}
 import br.ufmg.cs.systems.fractal.pattern.Pattern
 import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, ResultSubgraph, VertexInducedSubgraph}
+import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
+import br.ufmg.cs.systems.fractal.util.pool.IntArrayListPool
 import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging, VertexFilterFunc}
+import com.koloboke.collect.map.IntObjMap
+import com.koloboke.collect.map.hash.HashIntObjMaps
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.graphx.{EdgeDirection, EdgeTriplet, GraphLoader, PartitionStrategy, VertexId}
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkConf, SparkContext}
+import collection.JavaConverters._
 
 case class CliquesList(
                         fractalGraph: FractalGraph,
@@ -35,8 +41,11 @@ case class CliquesList(
       true
     }
 
-    val cliquesRes = fractalGraph.cliquesKClist(explorationSteps + 1).
-      //filter(vfilter).
+    //https://dl.acm.org/citation.cfm?id=3186125
+    //Fractoid with the initial state for cliques
+    val initialFractoid = fractalGraph.vfractoid.expand(1)
+
+    val cliquesRes = initialFractoid.
       set("efilter", epredCallback(readyCliques)).
       set ("comm_strategy", commStrategy).
       set ("num_partitions", numPartitions).
@@ -45,12 +54,12 @@ case class CliquesList(
     val (_, elapsed) = FractalSparkRunner.time {
       cliquesRes.compute()
     }
-
-    logInfo (s"CliquesList comm=${commStrategy}" +
-      s" numPartitions=${numPartitions} explorationSteps=${explorationSteps}" +
-      s" graph=${fractalGraph} " +
-      s" numValidSubgraphs=${cliquesRes.numValidSubgraphs()} elapsed=${elapsed}"
-    )
+//
+//    logInfo (s"CliquesList comm=${commStrategy}" +
+//      s" numPartitions=${numPartitions} explorationSteps=${explorationSteps}" +
+//      s" graph=${fractalGraph} " +
+//      s" numValidSubgraphs=${cliquesRes.numValidSubgraphs()} elapsed=${elapsed}"
+//    )
     val cliques = cliquesRes.collectSubgraphs();
     foundedCliques = (cliques, cliquesRes.collectSubgraphsOriginal(cliques))
   }
@@ -69,7 +78,7 @@ object MaximalCliquesListing extends Logging {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
-    val graphPath = "/Users/danielmuraveyko/Desktop/for_kcore_0"
+    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
 
     val sc = new SparkContext(conf)
     val kcore = Kcore.countKcore(sc, graphPath).map(_._2).distinct
@@ -77,7 +86,7 @@ object MaximalCliquesListing extends Logging {
     val fc = new FractalContext(sc)
 
     val graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph"
-    val fractalGraph = fc.textFile("/Users/danielmuraveyko/Desktop/for_kcore_0", graphClass = graphClass)
+    val fractalGraph = fc.textFile(graphPath, graphClass = graphClass)
     val commStrategy = "scratch"
     val numPartitions = 1
     var explorationSteps = kcore.head
@@ -86,23 +95,59 @@ object MaximalCliquesListing extends Logging {
     var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
 
-    val N = 3 //cliques count
-    while (cliques.size < N && explorationSteps >= 2) {
+    fractalGraph.set("cliquesize", explorationSteps)
+    var app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliquesIdx)
+    val (subgraphs, original_cliques) = app.findCliques()
+    logInfo(s"explorationSteps: ${explorationSteps} done")
+    cliques = cliques ++ original_cliques
+    cliquesIdx = cliquesIdx ++ subgraphs
 
-      fractalGraph.set("cliquesize", explorationSteps)
+    GlobalFreezeHolder.freeze = true
 
-      val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliquesIdx)
-      explorationSteps -= 1
-      val (subgraphs, original_cliques) = app.findCliques()//.map(x => x.flatMap(toInt))
-      logInfo(s"explorationSteps: ${explorationSteps} done")
+    val cliquesIdxJava = cliquesIdx.map(x => x.map(i => new Integer(i)).asJava).asJava
+    GlobalFreezeHolder.cleanFrozenList(cliquesIdxJava)
 
-      cliques = cliques ++ original_cliques
-      cliquesIdx = cliquesIdx ++ subgraphs
+    val list = GlobalFreezeHolder.getFrozenList
+    val copy = new java.util.ArrayList[FrozenDataHolder]()
 
-      if (cliques.size > N) {
-        cliques = cliques.slice(0, N)
+    copy.addAll(list)
+
+    val iterator = copy.iterator()
+
+    explorationSteps -= 1
+    while (iterator.hasNext) {
+      val elem = iterator.next()
+      if (elem.freezeDag.size + elem.freezePrefix.size > explorationSteps) {
+        GlobalFreezeHolder.current = elem
+        fractalGraph.set("cliquesize", explorationSteps)
+        app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps - elem.freezePrefix.size(), cliquesIdx)
+        val (subgraphs2, original_cliques2) = app.findCliques()
+        logInfo(s"explorationSteps: ${1} done")
+        cliques = cliques ++ original_cliques2
+        cliquesIdx = cliquesIdx ++ subgraphs2
       }
+
     }
+
+
+
+    val N = 1 //cliques count
+//    while (cliques.size < N && explorationSteps >= 2) {
+//
+//      fractalGraph.set("cliquesize", explorationSteps +1)
+//
+//      val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliquesIdx)
+//      explorationSteps -= 1
+//      val (subgraphs, original_cliques) = app.findCliques()
+//      logInfo(s"explorationSteps: ${explorationSteps} done")
+//
+//      cliques = cliques ++ original_cliques
+//      cliquesIdx = cliquesIdx ++ subgraphs
+//
+//      if (cliques.size > N) {
+//        cliques = cliques.slice(0, N)
+//      }
+//    }
 
     logInfo(cliques.toString)
 

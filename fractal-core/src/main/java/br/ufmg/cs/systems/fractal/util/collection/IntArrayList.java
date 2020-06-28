@@ -477,6 +477,16 @@ public class IntArrayList implements ReclaimableIntCollection, Writable, Externa
         return true;
     }
 
+    public boolean containsAny(Collection<?> c) {
+        for (Object o : c) {
+            if (contains(o)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     @Override
     public boolean addAll(Collection<? extends Integer> c) {
         if (c == null || c.size() == 0) {

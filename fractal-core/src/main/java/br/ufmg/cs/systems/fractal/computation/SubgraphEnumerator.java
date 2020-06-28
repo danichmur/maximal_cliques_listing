@@ -1,6 +1,7 @@
 package br.ufmg.cs.systems.fractal.computation;
 
 import br.ufmg.cs.systems.fractal.conf.Configuration;
+import br.ufmg.cs.systems.fractal.gmlib.clique.GlobalFreezeHolder;
 import br.ufmg.cs.systems.fractal.subgraph.Subgraph;
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
 import br.ufmg.cs.systems.fractal.util.pool.IntArrayListPool;
@@ -11,6 +12,7 @@ import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
+import com.koloboke.collect.map.IntObjMap;
 import org.apache.log4j.Logger;
 
 public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
@@ -54,6 +56,20 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
    public SubgraphEnumerator() {
       this.rlock = new ReentrantLock();
       this.prefix = IntArrayListPool.instance().createObject();
+   }
+
+   public void setForFrozen(){
+      subgraph.setVertices(GlobalFreezeHolder.current.freezePrefix);
+      set(GlobalFreezeHolder.current.freezeDag.keySet());
+      if(wordIds.size() == 1){
+         cur.moveNext();
+         currElem = cur.elem();
+      }
+
+   }
+
+   public IntObjMap<IntArrayList> getDag(){
+      return null;
    }
 
    /**
@@ -116,7 +132,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       this.cur = wordIds.cursor();
       this.shouldRemoveLastWord = false;
       this.active = new AtomicBoolean(true);
-      this.frozen = false;
+
       return this;
    }
 

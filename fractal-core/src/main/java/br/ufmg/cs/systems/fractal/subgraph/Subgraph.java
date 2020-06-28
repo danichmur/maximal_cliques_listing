@@ -22,6 +22,8 @@ public interface Subgraph extends WritableObject, Externalizable {
     IntArrayList getWords();
 
     IntArrayList getVertices();
+
+    void setVertices(IntArrayList p);
     
     <V> Vertex<V> vertex(int vertexId);
 

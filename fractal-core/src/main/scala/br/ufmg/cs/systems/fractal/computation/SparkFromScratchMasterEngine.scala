@@ -6,6 +6,7 @@ import java.util.function.IntConsumer
 
 import akka.actor._
 import br.ufmg.cs.systems.fractal.conf.SparkConfiguration
+import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolder, GlobalFreezeHolder}
 import br.ufmg.cs.systems.fractal.subgraph._
 import br.ufmg.cs.systems.fractal.util.{Logging, ProcessComputeFunc}
 import org.apache.spark.SparkContext
@@ -299,6 +300,23 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       def apply(iter: SubgraphEnumerator[S], c: Computation[S]): Long = {
         val config = c.getConfig()
         val size = config.getInteger("cliquesize", 1)
+
+
+        val t = iter.prefix.size() + iter.getAdditionalSize
+        if (t != 0 /*first computation*/ && t < size) {
+          if(iter.prefix.size() != 0 && iter.getAdditionalSize == 0){
+            //save clique
+            logInfo("");
+          } else {
+            //freeze
+            GlobalFreezeHolder.addFrozenData(new FrozenDataHolder(iter.getDag,iter.prefix))
+          }
+        }
+        if (GlobalFreezeHolder.freeze && c.getDepth() == 0){
+          iter.setForFrozen()
+        }
+
+
         if (c.getDepth() == 0) {
 
           val execEngine = c.getExecutionEngine().
@@ -338,9 +356,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           // setup work-stealing system
           start = System.currentTimeMillis
           if (config.wsEnabled()) {
-            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): Long = {
-              processCompute(iter, c, size)
-            }
+            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]) = processCompute(iter, c, size)
             val gtagExecutorActor = execEngine.slaveActorRef
             workStealingSys = new WorkStealingSystem[S](
               processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
@@ -353,9 +369,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             s" partitionId=${c.getPartitionId} took ${elapsed} ms")
 
           ret
-        } else {
-          processCompute(iter, c, size)
-        }
+        } else processCompute(iter, c, size)
       }
 
       private def hasNextComputation(iter: SubgraphEnumerator[S],
