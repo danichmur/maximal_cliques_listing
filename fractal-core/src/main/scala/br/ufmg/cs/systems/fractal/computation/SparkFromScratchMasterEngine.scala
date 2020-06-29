@@ -302,17 +302,19 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val size = config.getInteger("cliquesize", 1)
 
 
-        val t = iter.prefix.size() + iter.getAdditionalSize
-        if (t != 0 /*first computation*/ && t < size) {
-          if(iter.prefix.size() != 0 && iter.getAdditionalSize == 0){
-            //save clique
-            logInfo("");
+        val t = iter.prefix.size() + iter.getDag.size()
+        if (c.getDepth != 0 && t < size) {
+          if (iter.prefix.size != 0 && iter.getDag.size() == 0) {
+            //TODO save clique?
+            logInfo(s"SAVING C ${iter.getDag} ${iter.prefix}")
           } else {
             //freeze
-            GlobalFreezeHolder.addFrozenData(new FrozenDataHolder(iter.getDag,iter.prefix))
+            logInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
+            GlobalFreezeHolder.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
           }
+          return 0
         }
-        if (GlobalFreezeHolder.freeze && c.getDepth() == 0){
+        if (GlobalFreezeHolder.freeze && c.getDepth == 0){
           iter.setForFrozen()
         }
 

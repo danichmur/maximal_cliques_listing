@@ -71,7 +71,18 @@ case class CliquesList(
 }
 
 object MaximalCliquesListing extends Logging {
- //525 v, 22415 e - 8 min
+
+  def findFistFrozenData(size : Int): Option[FrozenDataHolder] = {
+    val it = GlobalFreezeHolder.getFrozenList.iterator()
+    while (it.hasNext) {
+      val elem = it.next()
+      if (elem.freezeDag.size + elem.freezePrefix.size > size) {
+        return Some(elem)
+      }
+    }
+    None
+  }
+  //525 v, 22415 e - 8 min
 
   def main(args: Array[String]): Unit = {
 
@@ -91,63 +102,45 @@ object MaximalCliquesListing extends Logging {
     val numPartitions = 1
     var explorationSteps = kcore.head
 
-    val outPath = "/Users/danielmuraveyko/Desktop/test"
     var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
 
-    fractalGraph.set("cliquesize", explorationSteps)
-    var app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliquesIdx)
-    val (subgraphs, original_cliques) = app.findCliques()
-    logInfo(s"explorationSteps: ${explorationSteps} done")
-    cliques = cliques ++ original_cliques
-    cliquesIdx = cliquesIdx ++ subgraphs
-
-    GlobalFreezeHolder.freeze = true
-
-    val cliquesIdxJava = cliquesIdx.map(x => x.map(i => new Integer(i)).asJava).asJava
-    GlobalFreezeHolder.cleanFrozenList(cliquesIdxJava)
-
-    val list = GlobalFreezeHolder.getFrozenList
-    val copy = new java.util.ArrayList[FrozenDataHolder]()
-
-    copy.addAll(list)
-
-    val iterator = copy.iterator()
-
-    explorationSteps -= 1
-    while (iterator.hasNext) {
-      val elem = iterator.next()
-      if (elem.freezeDag.size + elem.freezePrefix.size > explorationSteps) {
-        GlobalFreezeHolder.current = elem
-        fractalGraph.set("cliquesize", explorationSteps)
-        app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps - elem.freezePrefix.size(), cliquesIdx)
-        val (subgraphs2, original_cliques2) = app.findCliques()
-        logInfo(s"explorationSteps: ${1} done")
-        cliques = cliques ++ original_cliques2
-        cliquesIdx = cliquesIdx ++ subgraphs2
-      }
-
+    val addCliques = (steps : Int) => {
+      val app = CliquesList(fractalGraph, commStrategy, numPartitions, steps, cliquesIdx)
+      val (subgraphs, original_cliques) = app.findCliques()
+      cliques = cliques ++ original_cliques
+      cliquesIdx = cliquesIdx ++ subgraphs
     }
 
+    val N = 3 //cliques count
 
+    explorationSteps += 1
 
-    val N = 1 //cliques count
-//    while (cliques.size < N && explorationSteps >= 2) {
-//
-//      fractalGraph.set("cliquesize", explorationSteps +1)
-//
-//      val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliquesIdx)
-//      explorationSteps -= 1
-//      val (subgraphs, original_cliques) = app.findCliques()
-//      logInfo(s"explorationSteps: ${explorationSteps} done")
-//
-//      cliques = cliques ++ original_cliques
-//      cliquesIdx = cliquesIdx ++ subgraphs
-//
-//      if (cliques.size > N) {
-//        cliques = cliques.slice(0, N)
-//      }
-//    }
+    while (cliques.size < N && explorationSteps >= 2) {
+      fractalGraph.set("cliquesize", explorationSteps)
+      explorationSteps -= 1
+
+      if (GlobalFreezeHolder.isFrozenAvailable) {
+        GlobalFreezeHolder.freeze = true
+        val cliquesIdxJava = cliquesIdx.map(x => x.map(i => new Integer(i)).asJava).asJava
+        GlobalFreezeHolder.cleanFrozenList(cliquesIdxJava)
+        findFistFrozenData(explorationSteps) match {
+          case Some(elem) =>
+            GlobalFreezeHolder.current = elem
+            GlobalFreezeHolder.unfreeze(elem)
+            addCliques(explorationSteps - elem.freezePrefix.size())
+          case None =>
+            //addCliques(explorationSteps)
+        }
+      } else if (!GlobalFreezeHolder.freeze) {
+        addCliques(explorationSteps)
+      }
+      logInfo(s"explorationSteps: ${explorationSteps + 1} done")
+
+      if (cliques.size > N) {
+        cliques = cliques.slice(0, N)
+      }
+    }
 
     logInfo(cliques.toString)
 

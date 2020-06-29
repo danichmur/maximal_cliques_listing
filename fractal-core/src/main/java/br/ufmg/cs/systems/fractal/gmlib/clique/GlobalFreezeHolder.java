@@ -13,18 +13,29 @@ public class GlobalFreezeHolder {
     public static boolean freeze = false;
 
     private static Set<FrozenDataHolder> frozenList = new HashSet<>();
+    public static FrozenDataHolder current;
 
-    public  static FrozenDataHolder current;
-
-    public  static synchronized void addFrozenData(FrozenDataHolder pFrozenData){
+    public static synchronized void addFrozenData(FrozenDataHolder pFrozenData) {
         frozenList.add(pFrozenData);
+        System.out.println();
     }
 
     public static Set<FrozenDataHolder> getFrozenList() {
         return frozenList;
     }
 
+    public static void unfreeze(FrozenDataHolder h) {
+        frozenList.remove(h);
+    }
+
+    public static boolean isFrozenAvailable() {
+        return frozenList.size() != 0;
+    }
+
     public static void cleanFrozenList(List<Set<Integer>> cliques) {
+        if (cliques.size() == 0) {
+            return;
+        }
         Set<FrozenDataHolder> filteredFrozenList = new HashSet<>();
         for (FrozenDataHolder h : frozenList) {
             boolean isOk = isHolderOk(cliques, h);
@@ -34,26 +45,21 @@ public class GlobalFreezeHolder {
         }
 
         frozenList = filteredFrozenList;
-        System.out.println();
     }
 
     private static boolean isHolderOk(List<Set<Integer>> cliques, FrozenDataHolder holder) {
         for (Set<Integer> clique : cliques) {
-            if (isPrefixInClique(clique, holder.freezePrefix)) {
+            if (holder.isPrefixInClique(clique)) {
                 return false;
             }
             if (holder.freezePrefix.containsAny(clique)) {
-                dagRemoveAll(clique, holder.freezeDag);
+                holder.clearDag(clique);
             }
             // && isDagContainsAny(clique, holder.freezeDag)
-
 //            int prefixSize = holder.freezePrefix.size();
 //            holder.freezePrefix.removeAll(clique);
 //            int filteredPrefixSize = holder.freezePrefix.size();
 //
-//            if (filteredPrefixSize != prefixSize) {
-//                dagRemoveAll(clique, holder.freezeDag);
-//            }
             if (holder.freezePrefix.size() + holder.freezeDag.size() <= 2) {
                 //get rid of single edges
                 return false;
@@ -71,24 +77,6 @@ public class GlobalFreezeHolder {
         for (int c : clique) {
             if (dag.containsKey(c)) {
                 return true;
-            }
-        }
-        return false;
-    }
-
-    private static void dagRemoveAll(Set<Integer> clique, IntObjMap<IntArrayList> dag) {
-        for (int c : clique) {
-            dag.remove(c);
-        }
-    }
-
-    private static boolean isPrefixInClique(Set<Integer> clique, IntArrayList prefix) {
-        List<Integer> cList = new ArrayList<>(clique);
-        for (int i = 0; i < cList.size() - 1; i++) {
-            for (int j = i + 1; j < cList.size(); j++) {
-                if (prefix.contains(cList.get(i)) && prefix.contains(cList.get(j))) {
-                    return true;
-                }
             }
         }
         return false;
