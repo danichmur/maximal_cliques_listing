@@ -306,10 +306,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         if (c.getDepth != 0 && t < size) {
           if (iter.prefix.size != 0 && iter.getDag.size() == 0) {
             //TODO save clique?
-            logInfo(s"SAVING C ${iter.getDag} ${iter.prefix}")
+            //logInfo(s"SAVING C ${iter.getDag} ${iter.prefix}")
           } else {
             //freeze
-            logInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
+            //ogInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
             GlobalFreezeHolder.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
           }
           return 0

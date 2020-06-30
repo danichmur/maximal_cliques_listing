@@ -14,10 +14,12 @@ public class GlobalFreezeHolder {
 
     private static Set<FrozenDataHolder> frozenList = new HashSet<>();
     public static FrozenDataHolder current;
+    private static final Object lock = new Object();
 
-    public static synchronized void addFrozenData(FrozenDataHolder pFrozenData) {
-        frozenList.add(pFrozenData);
-        System.out.println();
+    public static void addFrozenData(FrozenDataHolder pFrozenData) {
+        synchronized(lock) {
+            frozenList.add(pFrozenData);
+        }
     }
 
     public static Set<FrozenDataHolder> getFrozenList() {
@@ -29,7 +31,11 @@ public class GlobalFreezeHolder {
     }
 
     public static boolean isFrozenAvailable() {
-        return frozenList.size() != 0;
+        boolean isAvailable;
+        synchronized(lock) {
+            isAvailable = frozenList.size() != 0;
+        }
+        return isAvailable;
     }
 
     public static void cleanFrozenList(List<Set<Integer>> cliques) {
