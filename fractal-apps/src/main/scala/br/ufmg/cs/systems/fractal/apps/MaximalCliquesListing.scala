@@ -88,7 +88,7 @@ object MaximalCliquesListing extends Logging {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
-    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_15"
+    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel("WARN")
@@ -112,13 +112,10 @@ object MaximalCliquesListing extends Logging {
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
-    val N = 10 //cliques count
-
-    explorationSteps += 1
+    val N = 3 //cliques count
 
     while (cliques.size < N && explorationSteps >= 2) {
-      fractalGraph.set("cliquesize", explorationSteps)
-      explorationSteps -= 1
+
       val cliquesIdxJava = cliquesIdx.map(x => x.map(i => new Integer(i)).asJava).asJava
       GlobalFreezeHolder.cleanFrozenList(cliquesIdxJava)
       if (GlobalFreezeHolder.isFrozenAvailable) {
@@ -126,15 +123,22 @@ object MaximalCliquesListing extends Logging {
         logError(s"frozen list size ${GlobalFreezeHolder.getFrozenList.size()}")
         findFistFrozenData(explorationSteps) match {
           case Some(elem) =>
+            fractalGraph.set("cliquesize", explorationSteps + 1)
             GlobalFreezeHolder.current = elem
             GlobalFreezeHolder.unfreeze(elem)
             addCliques(explorationSteps - elem.freezePrefix.size())
           case None =>
-            //addCliques(explorationSteps)
+            explorationSteps -= 1
         }
       } else if (!GlobalFreezeHolder.freeze) {
+        fractalGraph.set("cliquesize", explorationSteps + 1)
         addCliques(explorationSteps)
+        explorationSteps -= 1
+      } else {
+        //The frozen list is empty, we are done here
+        explorationSteps = 0
       }
+
       logInfo(s"explorationSteps: ${explorationSteps + 1} done")
 
       if (cliques.size > N) {
