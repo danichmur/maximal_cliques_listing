@@ -78,14 +78,15 @@ object MaximalCliquesListing extends Logging {
 
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
+    val logLevel = "WARN"
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
-    conf.set("fractal.log.level", "WARN")
+    conf.set("fractal.log.level", logLevel)
 
     val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
 
     val sc = new SparkContext(conf)
-    sc.setLogLevel("WARN")
+    sc.setLogLevel(logLevel)
 
     val kcore = Kcore.countKcore(sc, graphPath).map(_._2).distinct
 
