@@ -2,18 +2,10 @@ package br.ufmg.cs.systems.fractal.apps
 
 import br.ufmg.cs.systems.fractal.computation.Computation
 import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolder, GlobalFreezeHolder}
-import br.ufmg.cs.systems.fractal.graph.{Edge, Vertex}
-import br.ufmg.cs.systems.fractal.{CliquesOptApp, _}
-import br.ufmg.cs.systems.fractal.pattern.Pattern
-import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, ResultSubgraph, VertexInducedSubgraph}
-import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
-import br.ufmg.cs.systems.fractal.util.pool.IntArrayListPool
-import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging, VertexFilterFunc}
-import com.koloboke.collect.map.IntObjMap
-import com.koloboke.collect.map.hash.HashIntObjMaps
-import org.apache.hadoop.io.LongWritable
-import org.apache.spark.graphx.{EdgeDirection, EdgeTriplet, GraphLoader, PartitionStrategy, VertexId}
-import org.apache.spark.storage.StorageLevel
+import br.ufmg.cs.systems.fractal.graph.Edge
+import br.ufmg.cs.systems.fractal._
+import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, VertexInducedSubgraph}
+import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging}
 import org.apache.spark.{SparkConf, SparkContext}
 import collection.JavaConverters._
 
@@ -88,10 +80,13 @@ object MaximalCliquesListing extends Logging {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
+    conf.set("fractal.log.level", "WARN")
+
     val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel("WARN")
+
     val kcore = Kcore.countKcore(sc, graphPath).map(_._2).distinct
 
     val fc = new FractalContext(sc)
@@ -120,7 +115,7 @@ object MaximalCliquesListing extends Logging {
       GlobalFreezeHolder.cleanFrozenList(cliquesIdxJava)
       if (GlobalFreezeHolder.isFrozenAvailable) {
         GlobalFreezeHolder.freeze = true
-        logError(s"frozen list size ${GlobalFreezeHolder.getFrozenList.size()}")
+        logWarning(s"frozen list size ${GlobalFreezeHolder.getFrozenList.size()}")
         findFistFrozenData(explorationSteps) match {
           case Some(elem) =>
             fractalGraph.set("cliquesize", explorationSteps + 1)
@@ -139,14 +134,14 @@ object MaximalCliquesListing extends Logging {
         explorationSteps = 0
       }
 
-      logInfo(s"explorationSteps: ${explorationSteps + 1} done")
+      logWarning(s"explorationSteps: ${explorationSteps + 1} done")
 
       if (cliques.size > N) {
         cliques = cliques.slice(0, N)
       }
     }
 
-    logInfo(cliques.toString)
+    logWarning(cliques.toString)
 
     fc.stop()
     sc.stop()

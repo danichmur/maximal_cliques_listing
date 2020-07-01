@@ -31,8 +31,6 @@ trait SparkEngine [E <: Subgraph]
     Configuration.get(configurationId).asInstanceOf[SparkConfiguration[E]]
   }
 
-  setLogLevel (configuration.getLogLevel)
-
   // computation implements the user algorithm
   var computation: Computation[E] = _
 

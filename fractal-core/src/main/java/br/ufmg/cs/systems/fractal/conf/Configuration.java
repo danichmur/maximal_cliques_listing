@@ -53,7 +53,7 @@ public class Configuration<O extends Subgraph> implements Serializable {
     public static final String CONF_TMP_DIR_DEFAULT = "/tmp/fractal";
 
     public static final String CONF_LOG_LEVEL = "fractal.log.level";
-    public static final String CONF_LOG_LEVEL_DEFAULT = "info";
+    public static final String CONF_LOG_LEVEL_DEFAULT = "warn";
     public static final String CONF_MAINGRAPH_CLASS = "fractal.graph.class";
     public static final String CONF_MAINGRAPH_CLASS_DEFAULT = "br.ufmg.cs.systems.fractal.graph.BasicMainGraph";
     public static final String CONF_MAINGRAPH_PATH = "fractal.graph.location";
