@@ -75,10 +75,6 @@ trait SparkMasterEngine [E <: Subgraph]
       config.initialize(isMaster = true)
     }
 
-    // set log level
-    logInfo (s"Setting log level to ${config.getLogLevel}")
-    setLogLevel (config.getLogLevel)
-    sc.setLogLevel (config.getLogLevel.toUpperCase)
     logInfo (s"Setting num_partitions to " +
       s"${config.confs.get("num_partitions").getOrElse(sc.defaultParallelism)}")
     config.setIfUnset ("num_partitions", sc.defaultParallelism)
