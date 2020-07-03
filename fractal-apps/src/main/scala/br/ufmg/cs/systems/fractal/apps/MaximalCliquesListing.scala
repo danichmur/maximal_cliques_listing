@@ -104,7 +104,7 @@ object MaximalCliquesListing extends Logging {
     }
 
     val N = 10 //cliques count
-
+    val time = System.currentTimeMillis()
     while (cliques.size < N && explorationSteps >= 2) {
       if (GlobalFreezeHolder.isFrozenAvailable) {
         GlobalFreezeHolder.freeze = true
@@ -134,7 +134,7 @@ object MaximalCliquesListing extends Logging {
     GlobalFreezeHolder.deleteFrozenDir()
 
     logWarning("Result: " + cliques.toString)
-
+    logWarning(s"Time: ${System.currentTimeMillis() - time}")
     fc.stop()
     sc.stop()
   }
