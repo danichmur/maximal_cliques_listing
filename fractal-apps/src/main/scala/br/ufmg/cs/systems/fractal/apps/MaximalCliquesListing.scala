@@ -83,7 +83,7 @@ object MaximalCliquesListing extends Logging {
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
 
-    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
+    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_3"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -108,7 +108,7 @@ object MaximalCliquesListing extends Logging {
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
-    val N = 3 //cliques count
+    val N = 10 //cliques count
 
     while (cliques.size < N && explorationSteps >= 2) {
 

@@ -17,6 +17,10 @@ public class GlobalFreezeHolder {
     private static final Object lock = new Object();
 
     public static void addFrozenData(FrozenDataHolder pFrozenData) {
+//        if (pFrozenData.freezePrefix.size() + pFrozenData.freezeDag.size() <= 2) {
+//            //do not add single edges
+//            return;
+//        }
         synchronized(lock) {
             frozenList.add(pFrozenData);
         }

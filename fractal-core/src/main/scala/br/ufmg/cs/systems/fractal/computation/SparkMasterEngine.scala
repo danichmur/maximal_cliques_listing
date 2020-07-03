@@ -321,7 +321,7 @@ trait SparkMasterEngine [E <: Subgraph]
     val outputPath = new Path(subgraphsPath)
 
     if (!fs.exists(outputPath)) {
-      logWarning (s"Trying to get Subgraphs" +
+      logWarning (s"(no cliques found) Trying to get Subgraphs" +
         s" but output path does not exist: ${subgraphsPath}")
       return sc.emptyRDD[ResultSubgraph[_]]
     }

@@ -110,6 +110,9 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
       int v = orderedVertices.getUnchecked(i);
       IntArrayList orderedVertices2 = currentDag.get(v);
       IntArrayList target = IntArrayListPool.instance().createObject();
+      if (orderedVertices2 == null) {
+        continue;
+      }
       Utils.sintersect(orderedVertices, orderedVertices2,
               i + 1, orderedVertices.size(),
               0, orderedVertices2.size(), target);
