@@ -77,7 +77,7 @@ object MaximalCliquesListing extends Logging {
     val fc = new FractalContext(sc)
 
     val graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph"
-    val fractalGraph = fc.textFile("/Users/danielmuraveyko/Desktop/for_kcore_0", graphClass = graphClass)
+    val fractalGraph = fc.textFile("/Users/danielmuraveyko/Desktop/els/for_kcore_15", graphClass = graphClass)
     val commStrategy = "scratch"
     val numPartitions = 1
     var explorationSteps = kcore.head
@@ -86,7 +86,9 @@ object MaximalCliquesListing extends Logging {
     var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
 
-    val N = 3 //cliques count
+    val N = 10 //cliques count
+    val time = System.currentTimeMillis()
+
     while (cliques.size < N && explorationSteps >= 2) {
 
       fractalGraph.set("cliquesize", explorationSteps)
@@ -104,7 +106,8 @@ object MaximalCliquesListing extends Logging {
       }
     }
 
-    logInfo(cliques.toString)
+    logWarning(s"Time: ${System.currentTimeMillis() - time}")
+    logWarning(cliques.toString)
 
     fc.stop()
     sc.stop()
