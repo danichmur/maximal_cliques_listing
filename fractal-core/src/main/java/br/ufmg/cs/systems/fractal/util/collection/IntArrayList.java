@@ -14,7 +14,7 @@ import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
-public class IntArrayList implements ReclaimableIntCollection, Writable, Externalizable {
+public class IntArrayList implements ReclaimableIntCollection, Writable, Externalizable, Serializable {
     private static final int INITIAL_SIZE = 16;
 
     protected int[] backingArray;

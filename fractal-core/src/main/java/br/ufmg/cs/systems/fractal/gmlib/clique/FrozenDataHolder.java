@@ -6,22 +6,27 @@ import com.koloboke.collect.map.IntObjMap;
 import com.koloboke.collect.map.hash.HashIntObjMaps;
 import com.koloboke.collect.set.IntSet;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.*;
 
 public class FrozenDataHolder {
-
 
     public  IntObjMap<IntArrayList> freezeDag;
 
     public  IntArrayList freezePrefix;
 
     public FrozenDataHolder(IntObjMap<IntArrayList> freezeDag, IntArrayList freezePrefix) {
-        this.freezeDag = HashIntObjMaps.newMutableMap(freezeDag.size());
-        IntObjCursor<IntArrayList> cur = freezeDag.cursor();
-        while (cur.moveNext()) {
-            this.freezeDag.put(cur.key(), new IntArrayList(cur.value()));
-        }
-        this.freezePrefix = new IntArrayList(freezePrefix.toIntArray());
+        this.freezeDag = freezeDag;
+        this.freezePrefix = freezePrefix;
+//        this.freezeDag = HashIntObjMaps.newMutableMap(freezeDag.size());
+//        IntObjCursor<IntArrayList> cur = freezeDag.cursor();
+//        while (cur.moveNext()) {
+//            this.freezeDag.put(cur.key(), new IntArrayList(cur.value()));
+//        }
+//        this.freezePrefix = new IntArrayList(freezePrefix.toIntArray());
 
     }
 
@@ -42,6 +47,28 @@ public class FrozenDataHolder {
         }
         return false;
     }
+
+    void saveToFile(ObjectOutputStream oos) throws IOException {
+        oos.writeObject(freezePrefix);
+        oos.writeObject(freezeDag.size());
+        IntObjCursor<IntArrayList> cur = freezeDag.cursor();
+        while (cur.moveNext()) {
+            oos.writeObject(cur.key());
+            oos.writeObject(cur.value());
+        }
+    }
+
+    public static FrozenDataHolder readFile(ObjectInputStream ois) throws IOException, ClassNotFoundException {
+        IntArrayList prefix = (IntArrayList) ois.readObject();
+        Integer dagSize = (Integer) ois.readObject();
+        IntObjMap<IntArrayList> dag = HashIntObjMaps.newMutableMap(dagSize);
+
+        for (int i = 0; i < dagSize; i++) {
+            dag.put((int) ois.readObject(), (IntArrayList) ois.readObject());
+        }
+        return new FrozenDataHolder(dag, prefix);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(freezeDag, freezePrefix);
@@ -71,5 +98,9 @@ public class FrozenDataHolder {
         }
 
         return false;
+    }
+
+    public int getSize() {
+        return freezeDag.size() + freezePrefix.size();
     }
 }

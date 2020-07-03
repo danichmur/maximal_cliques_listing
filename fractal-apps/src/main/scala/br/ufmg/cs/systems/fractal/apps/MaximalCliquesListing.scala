@@ -1,5 +1,7 @@
 package br.ufmg.cs.systems.fractal.apps
 
+import java.util
+
 import br.ufmg.cs.systems.fractal.computation.Computation
 import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolder, GlobalFreezeHolder}
 import br.ufmg.cs.systems.fractal.graph.Edge
@@ -7,6 +9,7 @@ import br.ufmg.cs.systems.fractal._
 import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, VertexInducedSubgraph}
 import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging}
 import org.apache.spark.{SparkConf, SparkContext}
+
 import collection.JavaConverters._
 
 case class CliquesList(
@@ -64,16 +67,6 @@ case class CliquesList(
 
 object MaximalCliquesListing extends Logging {
 
-  def findFistFrozenData(size : Int): Option[FrozenDataHolder] = {
-    val it = GlobalFreezeHolder.getFrozenList.iterator()
-    while (it.hasNext) {
-      val elem = it.next()
-      if (elem.freezeDag.size + elem.freezePrefix.size > size) {
-        return Some(elem)
-      }
-    }
-    None
-  }
   //525 v, 22415 e - 8 min
 
   def main(args: Array[String]): Unit = {
@@ -83,7 +76,7 @@ object MaximalCliquesListing extends Logging {
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
 
-    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_3"
+    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_15"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -100,39 +93,36 @@ object MaximalCliquesListing extends Logging {
 
     var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
+    val cliquesIdxJava : java.util.List[java.util.Set[Integer]] = new util.ArrayList[java.util.Set[Integer]]()
 
     val addCliques = (steps : Int) => {
       val app = CliquesList(fractalGraph, commStrategy, numPartitions, steps, cliquesIdx)
       val (subgraphs, original_cliques) = app.findCliques()
       cliques = cliques ++ original_cliques
       cliquesIdx = cliquesIdx ++ subgraphs
+      cliquesIdxJava.addAll(subgraphs.map(x => x.map(i => new Integer(i)).asJava).asJava)
     }
 
     val N = 10 //cliques count
 
     while (cliques.size < N && explorationSteps >= 2) {
-
-      val cliquesIdxJava = cliquesIdx.map(x => x.map(i => new Integer(i)).asJava).asJava
-      GlobalFreezeHolder.cleanFrozenList(cliquesIdxJava)
       if (GlobalFreezeHolder.isFrozenAvailable) {
         GlobalFreezeHolder.freeze = true
-        logWarning(s"frozen list size ${GlobalFreezeHolder.getFrozenList.size()}")
-        findFistFrozenData(explorationSteps) match {
-          case Some(elem) =>
-            fractalGraph.set("cliquesize", explorationSteps + 1)
-            GlobalFreezeHolder.current = elem
-            GlobalFreezeHolder.unfreeze(elem)
-            addCliques(explorationSteps - elem.freezePrefix.size())
-          case None =>
-            explorationSteps -= 1
+        val foundFistFrozenData = GlobalFreezeHolder.pollFirstAvailable(explorationSteps, cliquesIdxJava)
+        if (foundFistFrozenData != null) {
+          fractalGraph.set("cliquesize", explorationSteps + 1)
+          GlobalFreezeHolder.current = foundFistFrozenData
+          addCliques(explorationSteps - foundFistFrozenData.freezePrefix.size() )
+        } else {
+          explorationSteps -= 1
         }
-      } else if (!GlobalFreezeHolder.freeze) {
+      } else if (GlobalFreezeHolder.freeze) {
+        //The frozen list is empty, we are done here
+        explorationSteps = 0
+      } else {
         fractalGraph.set("cliquesize", explorationSteps + 1)
         addCliques(explorationSteps)
         explorationSteps -= 1
-      } else {
-        //The frozen list is empty, we are done here
-        explorationSteps = 0
       }
 
       logWarning(s"explorationSteps: ${explorationSteps + 1} done")
@@ -141,8 +131,9 @@ object MaximalCliquesListing extends Logging {
         cliques = cliques.slice(0, N)
       }
     }
+    GlobalFreezeHolder.deleteFrozenDir()
 
-    logWarning(cliques.toString)
+    logWarning("Result: " + cliques.toString)
 
     fc.stop()
     sc.stop()

@@ -301,7 +301,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val config = c.getConfig()
         val size = config.getInteger("cliquesize", 1)
 
-
         val t = iter.prefix.size() + iter.getDag.size()
         if (c.getDepth != 0 && t < size) {
           if (iter.prefix.size != 0 && iter.getDag.size() == 0) {
@@ -309,7 +308,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             //logInfo(s"SAVING C ${iter.getDag} ${iter.prefix}")
           } else {
             //freeze
-            //ogInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
+            //logInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
+            //logError(s"SET PATH: ${config.getOutputPath}")
+            // TODO: use fractal tmp folders
+            //GlobalFreezeHolder.setPath(s"${config.getOutputPath}")
             GlobalFreezeHolder.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
           }
           return 0
@@ -380,7 +382,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         var addWords = 0L
         var subgraphsGenerated = 0L
         var ret = 0L
-       // var cc = config
 
         breakable { while (iter.hasNext) {
           val t = iter.prefix.size() + iter.getAdditionalSize
@@ -424,39 +425,20 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         var addWords = 0L
         var subgraphsGenerated = 0L
 
-        //try {
-          val wordIds = iter.getWordIds()
-          if (wordIds != null) {
-            lastStepConsumer.set(iter.getSubgraph(), c)
-            wordIds.forEach(lastStepConsumer)
-            addWords += lastStepConsumer.addWords
-            subgraphsGenerated += lastStepConsumer.subgraphsGenerated
-          } else {
-            val subgraph = iter.next()
-            addWords += 1
-            if (c.filter(subgraph)) {
-              subgraphsGenerated += 1
-              c.process(subgraph)
-            }
+        val wordIds = iter.getWordIds()
+        if (wordIds != null) {
+          lastStepConsumer.set(iter.getSubgraph(), c)
+          wordIds.forEach(lastStepConsumer)
+          addWords += lastStepConsumer.addWords
+          subgraphsGenerated += lastStepConsumer.subgraphsGenerated
+        } else {
+          val subgraph = iter.next()
+          addWords += 1
+          if (c.filter(subgraph)) {
+            subgraphsGenerated += 1
+            c.process(subgraph)
           }
-        //} catch {
-        //  case e: Exception =>
-        //    throw new RuntimeException(s"${e} ${iter} ${c}")
-        //    //var currentSubgraph: S = null.asInstanceOf[S]
-        //    //var addWords = 0L
-        //    //var subgraphsGenerated = 0L
-
-        //    //while (iter.hasNext) {
-        //    //  currentSubgraph = iter.next
-        //    //  addWords += 1
-        //    //  if (c.filter(currentSubgraph)) {
-        //    //    subgraphsGenerated += 1
-        //    //    c.process(currentSubgraph)
-        //    //  }
-        //    //}
-        //    //awAccums(c.getDepth).add(addWords)
-        //    //egAccums(c.getDepth).add(subgraphsGenerated)
-        //}
+        }
 
         awAccums(c.getDepth).add(addWords)
         egAccums(c.getDepth).add(subgraphsGenerated)
