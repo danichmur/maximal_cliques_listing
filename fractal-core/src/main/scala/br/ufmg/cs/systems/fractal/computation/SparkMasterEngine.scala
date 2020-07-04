@@ -28,7 +28,7 @@ trait SparkMasterEngine [E <: Subgraph]
   /** Initial configurations
    *  The following describe general engine parameters
    */
-  
+
   lazy val step: Int = parentOpt.map(_.step + 1).getOrElse(0)
 
   var sc: SparkContext = _
@@ -375,14 +375,14 @@ object SparkMasterEngine {
       : SparkMasterEngine[E] = {
     apply(sc, config, null)
   }
-  
+
   def apply[E <: Subgraph] (sc: SparkContext, config: SparkConfiguration[E],
       parent: SparkMasterEngine[E]): SparkMasterEngine[E] =
       config.getString(CONF_COMM_STRATEGY, CONF_COMM_STRATEGY_DEFAULT) match {
 
     case COMM_FROM_SCRATCH =>
       new SparkFromScratchMasterEngine [E] (sc, config, parent)
-    
+
     case COMM_GRAPH_RED =>
       new SparkGraphRedMasterEngine [E] (sc, config, parent)
   }

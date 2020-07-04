@@ -440,7 +440,7 @@ public class Configuration<O extends Subgraph> implements Serializable {
        this.mainGraphId = mainGraphId;
     }
 
-    protected boolean isMainGraphRead() {
+    public boolean isMainGraphRead() {
        return mainGraph != null && (mainGraph.getNumberVertices() > 0 ||
           mainGraph.getNumberEdges() > 0);
     }

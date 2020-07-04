@@ -13,6 +13,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel._
 import org.apache.spark.util.{LongAccumulator, SizeEstimator}
+import org.bsu.dm.PriorityService
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.Map
@@ -33,9 +34,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
   import SparkFromScratchMasterEngine._
 
   def config: SparkConfiguration[S] = _config
-  
+
   def parentOpt: Option[SparkMasterEngine[S]] = _parentOpt
-  
+
   var masterActorRef: ActorRef = _
 
   def this(_sc: SparkContext, config: SparkConfiguration[S]) {
@@ -169,6 +170,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
     val initStart = System.currentTimeMillis
     val _configBc = configBc
+    val mainGraphWasRead = this.config.isMainGraphRead
     stepRDD.mapPartitions { iter =>
       _configBc.value.initializeWithTag(isMaster = false)
       iter
@@ -178,71 +180,75 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
     logInfo (s"Initialization took ${initElapsed} ms")
 
-    val superstepStart = System.currentTimeMillis
 
-    val enumerationStart = System.currentTimeMillis
+    if(  mainGraphWasRead){
 
-    val _aggAccums = aggAccums
+      val superstepStart = System.currentTimeMillis
 
-    val execEngines = getExecutionEngines (
-      superstepRDD = stepRDD,
-      superstep = step,
-      configBc = configBc,
-      aggAccums = _aggAccums,
-      previousAggregationsBc = previousAggregationsBc)
+      val enumerationStart = System.currentTimeMillis
 
-    execEngines.persist(MEMORY_ONLY_SER)
-    execEngines.foreachPartition (_ => {})
+      val _aggAccums = aggAccums
+      val execEngines = getExecutionEngines (
+        superstepRDD = stepRDD,
+        superstep = step,
+        configBc = configBc,
+        aggAccums = _aggAccums,
+        previousAggregationsBc = previousAggregationsBc)
 
-    val enumerationElapsed = System.currentTimeMillis - enumerationStart
+      execEngines.persist(MEMORY_ONLY_SER)
+      execEngines.foreachPartition (_ => {})
 
-    logInfo(s"Enumeration step=${step} took ${enumerationElapsed} ms")
+      val enumerationElapsed = System.currentTimeMillis - enumerationStart
 
-    /** [1] We extract and aggregate the *aggregations* globally.
-     */
-    val aggregationsFuture = getAggregations (execEngines, numPartitions)
-    // aggregations
-    Await.ready (aggregationsFuture, atMost = Duration.Inf)
-    aggregationsFuture.value.get match {
-      case Success(previousAggregations) =>
-        aggregations = mergeOrReplaceAggregations (aggregations,
-          previousAggregations)
+      logInfo(s"Enumeration step=${step} took ${enumerationElapsed} ms")
 
-        aggregations.foreach { case (name, agg) =>
-          val mapping = agg.getMapping
-          val numMappings = agg.getNumberMappings
-          logInfo (s"Aggregation[${name}][numMappings=${numMappings}][${agg}]\n" +
-            s"${mapping.take(10).map(t => s"Aggregation[${name}][${step}]" +
-            s" ${t._1}: ${t._2}").mkString("\n")}\n...")
-        }
+      /** [1] We extract and aggregate the *aggregations* globally.
+        */
+      val aggregationsFuture = getAggregations (execEngines, numPartitions)
+      // aggregations
+      Await.ready (aggregationsFuture, atMost = Duration.Inf)
+      aggregationsFuture.value.get match {
+        case Success(previousAggregations) =>
+          aggregations = mergeOrReplaceAggregations (aggregations,
+            previousAggregations)
 
-        previousAggregationsBc = sc.broadcast (aggregations)
+          aggregations.foreach { case (name, agg) =>
+            val mapping = agg.getMapping
+            val numMappings = agg.getNumberMappings
+            logInfo (s"Aggregation[${name}][numMappings=${numMappings}][${agg}]\n" +
+              s"${mapping.take(10).map(t => s"Aggregation[${name}][${step}]" +
+                s" ${t._1}: ${t._2}").mkString("\n")}\n...")
+          }
 
-      case Failure(e) =>
-        logError (s"Error in collecting aggregations: ${e.getMessage}")
-        throw e
+          previousAggregationsBc = sc.broadcast (aggregations)
+
+        case Failure(e) =>
+          logError (s"Error in collecting aggregations: ${e.getMessage}")
+          throw e
+      }
+
+      execEngines.unpersist()
+
+      logInfo (s"StorageLevel = ${storageLevel}")
+
+      // whether the user chose to customize master computation, executed every
+      // superstep
+      masterComputation.compute()
+
+      // print stats
+      aggAccums.foreach { case (name, accum) =>
+        logInfo (s"Accumulator[${step}][${name}]: ${accum.value}")
+      }
+
+      // master will send poison pills to all executor actors of this step
+      masterActorRef ! Reset
+
+      val superstepFinish = System.currentTimeMillis
+      logInfo (
+        s"Superstep $step finished in ${superstepFinish - superstepStart} ms"
+      )
     }
 
-    execEngines.unpersist()
-
-    logInfo (s"StorageLevel = ${storageLevel}")
-
-    // whether the user chose to customize master computation, executed every
-    // superstep
-    masterComputation.compute()
-
-    // print stats
-    aggAccums.foreach { case (name, accum) =>
-      logInfo (s"Accumulator[${step}][${name}]: ${accum.value}")
-    }
-
-    // master will send poison pills to all executor actors of this step
-    masterActorRef ! Reset
-
-    val superstepFinish = System.currentTimeMillis
-    logInfo (
-      s"Superstep $step finished in ${superstepFinish - superstepStart} ms"
-    )
 
     // make sure we maintain the engine's original state
     this.config.set(SparkConfiguration.COMPUTATION_CONTAINER, originalContainer)

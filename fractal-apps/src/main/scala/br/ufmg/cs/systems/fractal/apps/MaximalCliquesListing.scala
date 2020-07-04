@@ -65,8 +65,10 @@ object MaximalCliquesListing extends Logging {
  //525 v, 22415 e - 8 min
 
   def main(args: Array[String]): Unit = {
+    val time = System.currentTimeMillis()
 
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
+    conf.set("fractal.log.level", "WARN")
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
     val graphPath = "/Users/danielmuraveyko/Desktop/for_kcore_0"
@@ -77,7 +79,7 @@ object MaximalCliquesListing extends Logging {
     val fc = new FractalContext(sc)
 
     val graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph"
-    val fractalGraph = fc.textFile("/Users/danielmuraveyko/Desktop/for_kcore_0", graphClass = graphClass)
+    val fractalGraph = fc.textFile(graphPath, graphClass = graphClass)
     val commStrategy = "scratch"
     val numPartitions = 1
     var explorationSteps = kcore.head
@@ -86,15 +88,16 @@ object MaximalCliquesListing extends Logging {
     var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
 
-    val N = 3 //cliques count
+    val N = 10 //cliques count
+
     while (cliques.size < N && explorationSteps >= 2) {
 
-      fractalGraph.set("cliquesize", explorationSteps)
+      fractalGraph.set("cliquesize", explorationSteps +1)
 
       val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliquesIdx)
       explorationSteps -= 1
       val (subgraphs, original_cliques) = app.findCliques()//.map(x => x.flatMap(toInt))
-      logInfo(s"explorationSteps: ${explorationSteps} done")
+      logWarning(s"explorationSteps: ${explorationSteps} done")
 
       cliques = cliques ++ original_cliques
       cliquesIdx = cliquesIdx ++ subgraphs
@@ -104,9 +107,11 @@ object MaximalCliquesListing extends Logging {
       }
     }
 
-    logInfo(cliques.toString)
+    logWarning(cliques.toString)
 
     fc.stop()
     sc.stop()
+
+    logWarning(s"time ${System.currentTimeMillis() - time}")
   }
 }
