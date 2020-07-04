@@ -70,9 +70,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             nextComputation().getSubgraphEnumerator();
 
     nextEnumerator.clearDag();
-//    if (prefix.size() + dag.size() < 28) {
-//      return nextEnumerator;
-//    }
+
     if (subgraph.getNumWords() == 0) {
       extendFromGraph(subgraph.getConfig().getMainGraph(), nextEnumerator.dag, u);
     } else {

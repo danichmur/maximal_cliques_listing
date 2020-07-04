@@ -92,12 +92,11 @@ object MaximalCliquesListing extends Logging {
 
     while (cliques.size < N && explorationSteps >= 2) {
 
-      fractalGraph.set("cliquesize", explorationSteps)
+      fractalGraph.set("cliquesize", explorationSteps + 1)
 
       val app = CliquesList(fractalGraph, commStrategy, numPartitions, explorationSteps, cliquesIdx)
       explorationSteps -= 1
-      val (subgraphs, original_cliques) = app.findCliques()//.map(x => x.flatMap(toInt))
-      logInfo(s"explorationSteps: ${explorationSteps} done")
+      val (subgraphs, original_cliques) = app.findCliques()
 
       cliques = cliques ++ original_cliques
       cliquesIdx = cliquesIdx ++ subgraphs
