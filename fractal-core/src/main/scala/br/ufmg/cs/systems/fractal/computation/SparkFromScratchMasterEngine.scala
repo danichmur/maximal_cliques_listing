@@ -170,6 +170,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
     val initStart = System.currentTimeMillis
     val _configBc = configBc
+    val mainGraphWasRead = this.config.isMainGraphRead
     stepRDD.mapPartitions { iter =>
       _configBc.value.initializeWithTag(isMaster = false)
       iter
@@ -179,71 +180,75 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
     logInfo (s"Initialization took ${initElapsed} ms")
 
-    val superstepStart = System.currentTimeMillis
+    if (mainGraphWasRead) {
+      val superstepStart = System.currentTimeMillis
 
-    val enumerationStart = System.currentTimeMillis
+      val enumerationStart = System.currentTimeMillis
 
-    val _aggAccums = aggAccums
+      val _aggAccums = aggAccums
 
-    val execEngines = getExecutionEngines (
-      superstepRDD = stepRDD,
-      superstep = step,
-      configBc = configBc,
-      aggAccums = _aggAccums,
-      previousAggregationsBc = previousAggregationsBc)
+      val execEngines = getExecutionEngines(
+        superstepRDD = stepRDD,
+        superstep = step,
+        configBc = configBc,
+        aggAccums = _aggAccums,
+        previousAggregationsBc = previousAggregationsBc)
 
-    execEngines.persist(MEMORY_ONLY_SER)
-    execEngines.foreachPartition (_ => {})
+      execEngines.persist(MEMORY_ONLY_SER)
+      execEngines.foreachPartition(_ => {})
 
-    val enumerationElapsed = System.currentTimeMillis - enumerationStart
+      val enumerationElapsed = System.currentTimeMillis - enumerationStart
 
-    logInfo(s"Enumeration step=${step} took ${enumerationElapsed} ms")
+      logInfo(s"Enumeration step=${step} took ${enumerationElapsed} ms")
 
-    /** [1] We extract and aggregate the *aggregations* globally.
-     */
-    val aggregationsFuture = getAggregations (execEngines, numPartitions)
-    // aggregations
-    Await.ready (aggregationsFuture, atMost = Duration.Inf)
-    aggregationsFuture.value.get match {
-      case Success(previousAggregations) =>
-        aggregations = mergeOrReplaceAggregations (aggregations,
-          previousAggregations)
+      /** [1] We extract and aggregate the *aggregations* globally.
+       */
+      val aggregationsFuture = getAggregations(execEngines, numPartitions)
+      // aggregations
+      Await.ready(aggregationsFuture, atMost = Duration.Inf)
+      aggregationsFuture.value.get match {
+        case Success(previousAggregations) =>
+          aggregations = mergeOrReplaceAggregations(aggregations,
+            previousAggregations)
 
-        aggregations.foreach { case (name, agg) =>
-          val mapping = agg.getMapping
-          val numMappings = agg.getNumberMappings
-          logInfo (s"Aggregation[${name}][numMappings=${numMappings}][${agg}]\n" +
-            s"${mapping.take(10).map(t => s"Aggregation[${name}][${step}]" +
-            s" ${t._1}: ${t._2}").mkString("\n")}\n...")
-        }
+          aggregations.foreach { case (name, agg) =>
+            val mapping = agg.getMapping
+            val numMappings = agg.getNumberMappings
+            logInfo(s"Aggregation[${name}][numMappings=${numMappings}][${agg}]\n" +
+              s"${
+                mapping.take(10).map(t => s"Aggregation[${name}][${step}]" +
+                  s" ${t._1}: ${t._2}").mkString("\n")
+              }\n...")
+          }
 
-        previousAggregationsBc = sc.broadcast (aggregations)
+          previousAggregationsBc = sc.broadcast(aggregations)
 
-      case Failure(e) =>
-        logError (s"Error in collecting aggregations: ${e.getMessage}")
-        throw e
+        case Failure(e) =>
+          logError(s"Error in collecting aggregations: ${e.getMessage}")
+          throw e
+      }
+
+      execEngines.unpersist()
+
+      logInfo(s"StorageLevel = ${storageLevel}")
+
+      // whether the user chose to customize master computation, executed every
+      // superstep
+      masterComputation.compute()
+
+      // print stats
+      aggAccums.foreach { case (name, accum) =>
+        logInfo(s"Accumulator[${step}][${name}]: ${accum.value}")
+      }
+
+      // master will send poison pills to all executor actors of this step
+      masterActorRef ! Reset
+
+      val superstepFinish = System.currentTimeMillis
+      logInfo(
+        s"Superstep $step finished in ${superstepFinish - superstepStart} ms"
+      )
     }
-
-    execEngines.unpersist()
-
-    logInfo (s"StorageLevel = ${storageLevel}")
-
-    // whether the user chose to customize master computation, executed every
-    // superstep
-    masterComputation.compute()
-
-    // print stats
-    aggAccums.foreach { case (name, accum) =>
-      logInfo (s"Accumulator[${step}][${name}]: ${accum.value}")
-    }
-
-    // master will send poison pills to all executor actors of this step
-    masterActorRef ! Reset
-
-    val superstepFinish = System.currentTimeMillis
-    logInfo (
-      s"Superstep $step finished in ${superstepFinish - superstepStart} ms"
-    )
 
     // make sure we maintain the engine's original state
     this.config.set(SparkConfiguration.COMPUTATION_CONTAINER, originalContainer)
