@@ -37,6 +37,10 @@ repositories {
     maven {
        url 'https://jitpack.io'
     }
+    maven {
+        url "http://maven.twttr.com"
+    }
+
 }
 
 dependencies {
@@ -54,6 +58,17 @@ dependencies {
     compile 'org.scalatest:scalatest_2.11:2.2.6'
 
     compile 'com.typesafe.akka:akka-remote_2.11:2.5.3'
+
+
+
+
+
+    compile ('com.twitter:cassovary-core_2.11:7.1.0'){
+        version{
+            strictly '7.1.0'
+        }
+        exclude group: 'org.scala-lang'
+    }
 
     compile project(':fractal-core')
 }

@@ -8,6 +8,9 @@ import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, VertexInducedSu
 import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging}
 import org.apache.spark.{SparkConf, SparkContext}
 
+
+import com.twitter.cassovary.graph.TestGraphs
+
 case class CliquesList(
                         fractalGraph: FractalGraph,
                         commStrategy: String,
@@ -62,6 +65,7 @@ object MaximalCliquesListing extends Logging {
  //525 v, 22415 e - 8 min
 
   def main(args: Array[String]): Unit = {
+    val graph = TestGraphs.generateCompleteGraph(0)
 
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
     conf.set("spark.executor.memory", "16g")
@@ -73,12 +77,14 @@ object MaximalCliquesListing extends Logging {
     val sc = new SparkContext(conf)
     sc.setLogLevel("WARN")
 
-    val kcore = Kcore.countKcore(sc, graphPath).map(_._2).distinct
+    val kcore_list = Kcore.countKcore(sc, graphPath)
+    val kcore = kcore_list.map(_._2).distinct
+    val kcore_map = kcore_list.toMap
 
     val fc = new FractalContext(sc)
 
     val graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph"
-    val fractalGraph = fc.textFile("/Users/danielmuraveyko/Desktop/els/for_kcore_15", graphClass = graphClass)
+    val fractalGraph = fc.textFile("/Users/danielmuraveyko/Desktop/els/for_kcore_0", graphClass = graphClass)
     val commStrategy = "scratch"
     val numPartitions = 1
     var explorationSteps = kcore.head
@@ -89,6 +95,8 @@ object MaximalCliquesListing extends Logging {
 
     val N = 10 //cliques count
     val time = System.currentTimeMillis()
+
+    fractalGraph.set("kcores", kcore_map)
 
     while (cliques.size < N && explorationSteps >= 2) {
 
