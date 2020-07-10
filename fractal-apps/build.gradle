@@ -12,8 +12,10 @@ buildscript {
    repositories {
       mavenLocal()
          mavenCentral()
-         jcenter()
          maven { url "https://plugins.gradle.org/m2/" }
+       maven { url 'http://repo1.maven.org/maven2' }
+       jcenter()
+
    }
    dependencies {
       classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
@@ -30,13 +32,20 @@ apply plugin: "com.github.johnrengelman.shadow"
 repositories {
     // Use jcenter for resolving your dependencies.
     // You can declare any Maven/Ivy/file repository here.
-    jcenter()
 
     mavenCentral()
-
+    mavenLocal()
     maven {
        url 'https://jitpack.io'
     }
+    maven { url "https://plugins.gradle.org/m2/" }
+    maven { url 'https://repo1.maven.org/maven2' }
+    jcenter()
+
+    maven {
+        url "https://maven.twttr.com"
+    }
+
 }
 
 dependencies {
@@ -54,6 +63,15 @@ dependencies {
     compile 'org.scalatest:scalatest_2.11:2.2.6'
 
     compile 'com.typesafe.akka:akka-remote_2.11:2.5.3'
+
+    compile group: 'net.openhft', name: 'chronicle-map', version: '3.17.8'
+
+    compile ('com.twitter:cassovary-core_2.11:7.1.0'){
+        version{
+            strictly '7.1.0'
+        }
+        exclude group: 'org.scala-lang'
+    }
 
     compile project(':fractal-core')
 }

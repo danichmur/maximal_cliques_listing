@@ -34,8 +34,14 @@ repositories {
 
     mavenCentral()
 
+    mavenLocal()
+
     maven {
        url 'https://jitpack.io'
+    }
+
+    maven {
+        url "https://maven.twttr.com"
     }
 }
 
@@ -54,4 +60,13 @@ dependencies {
     compile 'org.scalatest:scalatest_2.11:2.2.6'
 
     compile 'com.typesafe.akka:akka-remote_2.11:2.5.3'
+
+    compile group: 'net.openhft', name: 'chronicle-map', version: '3.17.8'
+
+    compile ('com.twitter:cassovary-core_2.11:7.1.0'){
+        version{
+            strictly '7.1.0'
+        }
+        exclude group: 'org.scala-lang'
+    }
 }

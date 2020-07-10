@@ -8,7 +8,7 @@ import org.apache.spark.storage.StorageLevel
 
 import scala.collection.immutable.IntMap
 
-object Kcore extends Logging{
+object Kcore extends Logging {
 
   val initialMsg="-10"
   def mergeMsg(msg1: String, msg2:String): String = msg1+":"+msg2

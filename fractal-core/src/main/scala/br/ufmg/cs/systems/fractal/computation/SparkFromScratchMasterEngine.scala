@@ -6,9 +6,13 @@ import java.util.function.IntConsumer
 
 import akka.actor._
 import br.ufmg.cs.systems.fractal.conf.SparkConfiguration
-import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolder, GlobalFreezeHolder}
+import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolderOld, GlobalFreezeHolderOld}
 import br.ufmg.cs.systems.fractal.subgraph._
-import br.ufmg.cs.systems.fractal.util.{Logging, ProcessComputeFunc}
+import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
+import br.ufmg.cs.systems.fractal.util.{Logging, ProcessComputeFunc, SynchronizedNodeBuilder}
+import com.koloboke.collect.map.IntObjMap
+import com.koloboke.collect.map.hash.HashIntObjMaps
+import com.twitter.cassovary.graph.node.SynchronizedDynamicNode
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
@@ -16,11 +20,14 @@ import org.apache.spark.storage.StorageLevel._
 import org.apache.spark.util.{LongAccumulator, SizeEstimator}
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.collection.mutable.Map
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 import scala.util.control.Breaks._
+import scala.collection.immutable.HashMap
+import scala.collection.mutable
 
 /**
  * Underlying engine that runs the fractal master.
@@ -303,7 +310,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       var lastStepConsumer: LastStepConsumer[S] = _
 
       def apply(iter: SubgraphEnumerator[S], c: Computation[S]): Long = {
-        val config = c.getConfig()
+        val config = c.getConfig
         val size = config.getInteger("cliquesize", 1)
 
         val t = iter.prefix.size() + iter.getDag.size()
@@ -314,21 +321,35 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           } else {
             //freeze
             //logInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
-            //logError(s"SET PATH: ${config.getOutputPath}")
-            // TODO: use fractal tmp folders
-            //GlobalFreezeHolder.setPath(s"${config.getOutputPath}")
-            GlobalFreezeHolder.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
+            Refrigerator.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
           }
           return 0
         }
-        if (GlobalFreezeHolder.freeze && c.getDepth == 0){
-          iter.setForFrozen()
+        if (Refrigerator.freeze && c.getDepth == 0) {
+          val pIter = Refrigerator.current.freezePrefix.iterator
+          val dIter = Refrigerator.current.freezeDag.iterator
+          val prefix = new IntArrayList
+          val dag : IntObjMap[IntArrayList] = HashIntObjMaps.newMutableMap.asInstanceOf[IntObjMap[IntArrayList]]
+
+          while (pIter.hasNext) {
+            prefix.add(pIter.next.asInstanceOf[Integer])
+          }
+
+          while (dIter.hasNext) {
+            val node = dIter.next
+            dag.put(node.id, SynchronizedNodeBuilder.seq2ArrayList(node.outboundNodes))
+          }
+          iter.setForFrozen(prefix, dag)
         }
+        val kcores : HashMap[Int, Int] = config
+          .asInstanceOf[SparkConfiguration[VertexInducedSubgraph]]
+          .getValue("kcores", HashMap.empty)
+          .asInstanceOf[HashMap[Int, Int]]
 
 
-        if (c.getDepth() == 0) {
+        if (c.getDepth == 0) {
 
-          val execEngine = c.getExecutionEngine().
+          val execEngine = c.getExecutionEngine.
             asInstanceOf[SparkFromScratchEngine[S]]
 
           egAccums(c.getDepth) = execEngine.
@@ -338,7 +359,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           var currComp = c.nextComputation()
           while (currComp != null) {
-            val depth = currComp.getDepth()
+            val depth = currComp.getDepth
             currComp.setExecutionEngine(execEngine)
             currComp.init(config)
             currComp.initAggregations(config)
@@ -353,7 +374,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           var start = System.currentTimeMillis
 
-          val ret = processCompute(iter, c, size)
+          val ret = processCompute(iter, c, size, kcores)
           var elapsed = System.currentTimeMillis - start
 
           logInfo (s"WorkStealingMode internal=${config.internalWsEnabled()}" +
@@ -365,7 +386,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           // setup work-stealing system
           start = System.currentTimeMillis
           if (config.wsEnabled()) {
-            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]) = processCompute(iter, c, size)
+            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]) = processCompute(iter, c, size, kcores)
             val gtagExecutorActor = execEngine.slaveActorRef
             workStealingSys = new WorkStealingSystem[S](
               processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
@@ -378,11 +399,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             s" partitionId=${c.getPartitionId} took ${elapsed} ms")
 
           ret
-        } else processCompute(iter, c, size)
+        } else processCompute(iter, c, size, kcores)
       }
 
       private def hasNextComputation(iter: SubgraphEnumerator[S],
-          c: Computation[S], nextComp: Computation[S], size: Int): Long = {
+          c: Computation[S], nextComp: Computation[S], size: Int, kcores: HashMap[Int, Int]): Long = {
         var currentSubgraph: S = null.asInstanceOf[S]
         var addWords = 0L
         var subgraphsGenerated = 0L
@@ -390,13 +411,21 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
         breakable { while (iter.hasNext) {
           val t = iter.prefix.size() + iter.getAdditionalSize
+          if (iter.prefix.size() == 1) {
+            kcores.get(iter.prefix.get(0)) match {
+              case Some(v_kcore) => if (v_kcore + 1 < size) {
+                break
+              }
+              case None => break
+            }
+          }
           if (t != 0 /*first computation*/ && t < size) {
             addWords = 0
             subgraphsGenerated = 0
             ret = 0
             break
           }
-          val nextEnum = iter.extend()
+          iter.extend()
           currentSubgraph = iter.getSubgraph
           addWords += 1
           if (c.filter(currentSubgraph)) {
@@ -406,18 +435,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             currentSubgraph.previousExtensionLevel()
           }
         }}
-
-        //while (senum.hasNext) {
-        //  currentSubgraph = senum.next
-        //  addWords += 1
-        //  if (c.filter(currentSubgraph)) {
-        //    subgraphsGenerated += 1
-        //    currentSubgraph.nextExtensionLevel
-        //    nextComp.compute(currentSubgraph)
-        //    currentSubgraph.previousExtensionLevel
-        //  }
-        //}
-
         awAccums(c.getDepth).add(addWords)
         egAccums(c.getDepth).add(subgraphsGenerated)
 
@@ -454,12 +471,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       private def processCompute(
         iter: SubgraphEnumerator[S],
         c: Computation[S],
-        size: Int
+        size: Int,
+        kcores: HashMap[Int, Int]
       ): Long = {
         val nextComp = c.nextComputation()
 
         if (nextComp != null) {
-          hasNextComputation(iter, c, nextComp, size)
+          hasNextComputation(iter, c, nextComp, size, kcores)
         } else {
           lastComputation(iter, c)
         }

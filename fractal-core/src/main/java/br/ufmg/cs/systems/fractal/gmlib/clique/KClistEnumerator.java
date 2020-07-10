@@ -12,9 +12,11 @@ import com.koloboke.collect.map.IntObjCursor;
 import com.koloboke.collect.map.IntObjMap;
 import com.koloboke.collect.map.hash.HashIntObjMaps;
 import com.koloboke.function.IntObjConsumer;
+import com.twitter.cassovary.graph.node.SynchronizedDynamicNode;
 
 public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> {
 
+  // TODO SynchronizedDynamicGraphV3 dag;
   // current clique DAG
   private IntObjMap<IntArrayList> dag;
 
@@ -87,9 +89,9 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   }
 
   @Override
-  public void setForFrozen() {
-    super.setForFrozen();
-    dag = GlobalFreezeHolder.current.freezeDag;
+  public void setForFrozen(IntArrayList prefix, IntObjMap<IntArrayList>  dag) {
+    super.setForFrozen(prefix, dag);
+    this.dag = dag;
   }
 
   /**

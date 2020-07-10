@@ -30,12 +30,24 @@ repositories {
     jcenter()
     mavenCentral()
     maven { url 'https://jitpack.io' }
+    maven {
+        url "https://maven.twttr.com"
+    }
 }
 
 dependencies {
     compile project(':fractal-core')
     compile project(':fractal-apps')
     compile group: 'org.scala-lang', name: 'scala-library', version: '2.12.1'
+
+    compile ('com.twitter:cassovary-core_2.11:7.1.0'){
+        version{
+            strictly '7.1.0'
+        }
+        exclude group: 'org.scala-lang'
+    }
+    compile group: 'net.openhft', name: 'chronicle-map', version: '3.17.8'
+
 }
 
 shadowJar {

@@ -1,7 +1,6 @@
 package br.ufmg.cs.systems.fractal.computation;
 
 import br.ufmg.cs.systems.fractal.conf.Configuration;
-import br.ufmg.cs.systems.fractal.gmlib.clique.GlobalFreezeHolder;
 import br.ufmg.cs.systems.fractal.subgraph.Subgraph;
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
 import br.ufmg.cs.systems.fractal.util.pool.IntArrayListPool;
@@ -36,8 +35,8 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    protected boolean shouldRemoveLastWord;
    
-   protected AtomicBoolean active;
-   protected boolean frozen;
+   private AtomicBoolean active;
+   private boolean frozen;
 
    public String computationLabel() {
       return computation.computationLabel();
@@ -58,9 +57,10 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       this.prefix = IntArrayListPool.instance().createObject();
    }
 
-   public void setForFrozen(){
-      subgraph.setVertices(GlobalFreezeHolder.current.freezePrefix);
-      set(GlobalFreezeHolder.current.freezeDag.keySet());
+   public void setForFrozen(IntArrayList prefix, IntObjMap<IntArrayList>  dag) {
+      subgraph.setVertices(prefix);
+      set(dag.keySet());
+
       if(wordIds.size() == 1){
          cur.moveNext();
          currElem = cur.elem();
