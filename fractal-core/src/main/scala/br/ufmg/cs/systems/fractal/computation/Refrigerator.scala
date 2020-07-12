@@ -13,7 +13,6 @@ import scala.collection.mutable
 object Refrigerator {
   var freeze : Boolean = false
   var current : FrozenDataHolder = _
-  //var obj : Object = new Object
   var sizesMap = new mutable.HashMap[Integer, mutable.HashSet[Int]]
 
   var frozenMap: ChronicleMap[Integer, Array[Byte]] = _
@@ -25,16 +24,17 @@ object Refrigerator {
     if (pFrozenData.getSize <= 2) { //get rid of single edges
       return
     }
-    //todo : locks
-    if (frozenMap == null) initFrozenMap()
-    val id = counter
-    counter += 1
-    frozenMap.put(id, SynchronizedNodeBuilder.serialiseFrozenDataHolder(pFrozenData))
-    val size = pFrozenData.getSize
-    val ids = sizesMap.getOrElseUpdate(size, new mutable.HashSet[Int])
-    ids.add(id)
-    sizesMap.put(size, ids)
-    availableSizes.add(size)
+    synchronized {
+      if (frozenMap == null) initFrozenMap()
+      val id = counter
+      counter += 1
+      frozenMap.put(id, SynchronizedNodeBuilder.serialiseFrozenDataHolder(pFrozenData))
+      val size = pFrozenData.getSize
+      val ids = sizesMap.getOrElseUpdate(size, new mutable.HashSet[Int])
+      ids.add(id)
+      sizesMap.put(size, ids)
+      availableSizes.add(size)
+    }
   }
 
   def initFrozenMap(): Unit = {
@@ -42,66 +42,76 @@ object Refrigerator {
       .of(classOf[Integer], classOf[Array[Byte]])
       .name("frozen-map")
       .averageValue(makeDummyGraph()) //TODO
-      .entries(50000) //TODO
+      .entries(10000000) //TODO
       .create
   }
 
   def pollFirstAvailable(size : Int, cliques : List[Set[Int]]): FrozenDataHolder = {
-    //TODO lock
-    var availableSize = availableSizes.lastKey
-    while (availableSizes.nonEmpty) {
-      if (availableSize >= size) {
-        sizesMap.get(availableSize) match {
-          case Some(ids) =>
-            val graphNew : Array[Byte] = frozenMap.get(ids.head)
-            if (ids.size == 1) {
-              sizesMap.remove(availableSize)
-              availableSizes.remove(availableSize)
-            } else {
-              sizesMap.put(availableSize, ids.tail)
-            }
-            frozenMap.remove(ids.head)
-            val frozenDataHolder = SynchronizedNodeBuilder.deserialiseFrozenDataHolder(graphNew)
-            if (cliques.isEmpty || isHolderOk(cliques, frozenDataHolder)) {
-              if (frozenDataHolder.getSize >= size) {
-                return frozenDataHolder
+    synchronized {
+      var availableSize = availableSizes.lastKey
+      while (availableSizes.nonEmpty) {
+        if (availableSize >= size) {
+          sizesMap.get(availableSize) match {
+            case Some(ids) =>
+              val graphNew: Array[Byte] = frozenMap.get(ids.head)
+              if (ids.size == 1) {
+                sizesMap.remove(availableSize)
+                availableSizes.remove(availableSize)
               } else {
-                //sizes of holder were changed, so we should to resave holder
-                addFrozenData(frozenDataHolder)
+                sizesMap.put(availableSize, ids.tail)
               }
-            }
-          case None =>
-            sizesMap.remove(availableSize)
+              frozenMap.remove(ids.head)
+              val frozenDataHolder = SynchronizedNodeBuilder.deserialiseFrozenDataHolder(graphNew)
+              if (cliques.isEmpty || isHolderOk(cliques, frozenDataHolder)) {
+                if (frozenDataHolder.getSize >= size) {
+                  return frozenDataHolder
+                } else {
+                  //sizes of holder were changed, so we should to resave holder
+                  addFrozenData(frozenDataHolder)
+                }
+              }
+            case None =>
+              sizesMap.remove(availableSize)
+          }
+          if (availableSizes.nonEmpty) {
+            availableSize = availableSizes.lastKey
+          }
+        } else {
+          return null
         }
-        if (availableSizes.nonEmpty) {
-          availableSize = availableSizes.lastKey
-        }
-      } else {
-        return null
       }
+      null
     }
-    null
   }
 
   def makeDummyGraph(): Array[Byte] = {
     val n = new SynchronizedDynamicNode(0)
-    n.addOutBoundNodes(List(1, 2, 3))
+    n.addOutBoundNodes(List(1, 2, 3, 5, 6, 7, 1, 2, 3, 5, 6, 7))
 
     val n1 = new SynchronizedDynamicNode(4)
-    n1.addOutBoundNodes(List(5, 6, 7))
+    n1.addOutBoundNodes(List(5, 6, 7, 1, 2, 3, 5, 6, 7))
 
     val n2 = new SynchronizedDynamicNode(8)
-    n2.addOutBoundNodes(List(9, 10, 11))
+    n2.addOutBoundNodes(List(9, 10, 11, 1, 2, 3, 5, 6, 7))
 
-    val nodes = List[SynchronizedDynamicNode](n, n1, n2)
-//    val sixNodeGraph = new SynchronizedDynamicGraphV2(testNodes)
-//    sixNodeGraph.getOrCreateNode(0)
-//    sixNodeGraph.getOrCreateNode(1)
-//    sixNodeGraph.getOrCreateNode(2)
+    val n3 = new SynchronizedDynamicNode(0)
+    n3.addOutBoundNodes(List(1, 2, 3, 5, 6, 7, 1, 2, 3, 5, 6, 7))
+
+    val n4 = new SynchronizedDynamicNode(4)
+    n4.addOutBoundNodes(List(5, 6, 7, 1, 2, 3, 5, 6, 7))
+
+    val n5 = new SynchronizedDynamicNode(8)
+    n5.addOutBoundNodes(List(9, 10, 11, 1, 2, 3, 5, 6, 7))
+
+    val nodes = List[SynchronizedDynamicNode](n, n1, n2, n3, n4, n5)
 
     val frozenDataHolder = new FrozenDataHolder()
-    frozenDataHolder.freezePrefix = Seq(1, 2, 3, 4)
+    frozenDataHolder.freezePrefix = Seq(1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4)
     frozenDataHolder.freezeDag = nodes
+//    frozenDataHolder.freezeDag = new SynchronizedDynamicGraphV2(nodes)
+//    for (i <- nodes.indices) {
+//      frozenDataHolder.freezeDag.getOrCreateNode(i)
+//    }
     SynchronizedNodeBuilder.serialiseFrozenDataHolder(frozenDataHolder)
   }
 
@@ -122,8 +132,9 @@ object Refrigerator {
   }
 
   def isEmpty: Boolean = {
-    // TODO lock
-    availableSizes.isEmpty
+    synchronized {
+      availableSizes.isEmpty
+    }
   }
 
   def close(): Unit = {

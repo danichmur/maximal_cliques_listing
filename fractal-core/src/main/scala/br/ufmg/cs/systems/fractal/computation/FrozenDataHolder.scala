@@ -1,7 +1,7 @@
 package br.ufmg.cs.systems.fractal.computation
 
 
-import br.ufmg.cs.systems.fractal.util.SynchronizedNodeBuilder
+import br.ufmg.cs.systems.fractal.util.{SynchronizedDynamicGraphV2, SynchronizedNodeBuilder}
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
 import com.koloboke.collect.map.hash.HashIntObjMaps
 import com.koloboke.collect.map.{IntObjCursor, IntObjMap}
@@ -22,6 +22,12 @@ class FrozenDataHolder(_freezeDag: IntObjMap[IntArrayList], _freezePrefix: IntAr
     while (cur.moveNext) {
       freezeDag = SynchronizedNodeBuilder.build(cur.key, cur.value) :: freezeDag
     }
+
+//    this.freezeDag = new SynchronizedDynamicGraphV2(nodes)
+//
+//    for (i <- nodes.indices) {
+//      freezeDag.getOrCreateNode(i)
+//    }
   }
 
   def this() {

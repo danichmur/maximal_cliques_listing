@@ -113,7 +113,7 @@ object MaximalCliquesListing extends Logging {
         Refrigerator.freeze = true
         val foundFistFrozenData = Refrigerator.pollFirstAvailable(explorationSteps, cliquesIdx)
         if (foundFistFrozenData != null) {
-          fractalGraph.set("cliquesize", explorationSteps)
+          fractalGraph.set("cliquesize", explorationSteps + 1)
           Refrigerator.current = foundFistFrozenData
           addCliques(explorationSteps - foundFistFrozenData.freezePrefix.size)
         } else {

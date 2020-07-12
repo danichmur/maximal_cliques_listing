@@ -5,17 +5,13 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, 
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
 import com.twitter.cassovary.graph.{DynamicDirectedGraphHashMap, SynchronizedDynamicGraph}
 import com.twitter.cassovary.graph.StoredGraphDir.OnlyOut
-import com.twitter.cassovary.graph.node.SynchronizedDynamicNode
+import com.twitter.cassovary.graph.node.{DynamicNode, SynchronizedDynamicNode}
 import br.ufmg.cs.systems.fractal.computation.FrozenDataHolder
 import com.twitter.cassovary.collections.CSeq
 
 class SynchronizedDynamicGraphV2(nodes: List[SynchronizedDynamicNode]) extends DynamicDirectedGraphHashMap(OnlyOut) {
-  val _nodes : List[SynchronizedDynamicNode] = List[SynchronizedDynamicNode]()
-
-  override def nodeFactory(id: Int): SynchronizedDynamicNode = _nodes(id)
+  override def nodeFactory(id: Int): SynchronizedDynamicNode = nodes(id)
 }
-
-class SynchronizedDynamicGraphV3 extends SynchronizedDynamicGraph(OnlyOut) {}
 
 object SynchronizedNodeBuilder {
 
@@ -64,18 +60,18 @@ object SynchronizedNodeBuilder {
             }
           }
 
-          frozenDataHolder.freezeDag = nodes
-//          for (i <- 0 until size)
-//            newDag.getOrCreateNode(i)
-//          frozenDataHolder.freezeDag = newDag
-//          return frozenDataHolder
+          frozenDataHolder.freezeDag = nodes //new SynchronizedDynamicGraphV2(nodes)
+
+//          for (i <- nodes.indices) {
+//            frozenDataHolder.freezeDag.getOrCreateNode(i)
+//          }
       }
     }
     ois.close()
     frozenDataHolder
   }
 
-  def serialiseNode(value: SynchronizedDynamicNode, oos : ObjectOutputStream): Unit = {
+  def serialiseNode(value: DynamicNode, oos : ObjectOutputStream): Unit = {
     oos.writeObject(value.id)
     val outbounds = Array.fill(value.outboundNodes.length){0}
     var i = 0
