@@ -7,16 +7,6 @@ import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, VertexInducedSu
 import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging}
 import org.apache.spark.{SparkConf, SparkContext}
 
-trait PostalCodeRange {
-  def minCode: Int
-
-  def minCode(minCode: Int): Unit
-
-  def maxCode: Int
-
-  def maxCode(maxCode: Int): Unit
-}
-
 case class CliquesList(
                         fractalGraph: FractalGraph,
                         commStrategy: String,
@@ -77,7 +67,7 @@ object MaximalCliquesListing extends Logging {
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
 
-    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
+    val graphPath = "/Users/danielmuraveyko/Desktop/for_kcore_18"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -104,41 +94,44 @@ object MaximalCliquesListing extends Logging {
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
-    val N = 10 //cliques count
+    val N = 4 //cliques count
     val time = System.currentTimeMillis()
     fractalGraph.set("kcores", kcore_map)
 
-    while (cliques.size < N && explorationSteps >= 2) {
-      if (!Refrigerator.isEmpty) {
-        Refrigerator.freeze = true
-        val foundFistFrozenData = Refrigerator.pollFirstAvailable(explorationSteps, cliquesIdx)
-        if (foundFistFrozenData != null) {
-          fractalGraph.set("cliquesize", explorationSteps + 1)
-          Refrigerator.current = foundFistFrozenData
-          addCliques(explorationSteps - foundFistFrozenData.freezePrefix.size)
-        } else {
-          explorationSteps -= 1
-        }
-      } else if (Refrigerator.freeze) {
-        //The frozen list is empty, we are done here
-        explorationSteps = 0
-      } else {
-        fractalGraph.set("cliquesize", explorationSteps + 1)
-        addCliques(explorationSteps)
-        explorationSteps -= 1
-      }
+//    while (cliques.size < N && explorationSteps >= 2) {
+//      if (!Refrigerator.isEmpty) {
+//        Refrigerator.freeze = true
+//        val foundFistFrozenData = Refrigerator.pollFirstAvailable(explorationSteps, cliquesIdx)
+//        if (foundFistFrozenData != null) {
+//          fractalGraph.set("cliquesize", explorationSteps + 1)
+//          Refrigerator.current = foundFistFrozenData
+//          addCliques(explorationSteps - foundFistFrozenData.freezePrefix.size)
+//        } else {
+//          explorationSteps -= 1
+//        }
+//      } else if (Refrigerator.freeze) {
+//        //The frozen list is empty, we are done here
+//        explorationSteps = 0
+//      } else {
+//        fractalGraph.set("cliquesize", 71)
+//        addCliques(71)
+//        explorationSteps -= 1
+//      }
 
       logWarning(s"explorationSteps: ${explorationSteps + 1} done")
 
-      if (cliques.size > N) {
-        cliques = cliques.slice(0, N)
-      }
-    }
+    fractalGraph.set("cliquesize", 71)
+    addCliques(71)
+
+//      if (cliques.size > N) {
+//        cliques = cliques.slice(0, N)
+//      }
+//    }
 
     logWarning("Result: " + cliques.toString)
-    logWarning(s"Time: ${System.currentTimeMillis() - time}")
+    logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
-    Refrigerator.close()
+    //Refrigerator.close()
     fc.stop()
     sc.stop()
   }

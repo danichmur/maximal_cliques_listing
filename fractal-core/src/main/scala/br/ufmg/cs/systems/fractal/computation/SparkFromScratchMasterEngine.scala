@@ -321,7 +321,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           } else {
             //freeze
             //logInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
-            Refrigerator.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
+            //Refrigerator.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
           }
           return 0
         }
@@ -413,8 +413,14 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val t = iter.prefix.size() + iter.getAdditionalSize
           if (iter.prefix.size() == 1) {
             kcores.get(iter.prefix.get(0)) match {
-              case Some(v_kcore) => if (v_kcore + 1 < size) {
-                break
+              case Some(v_kcore) => {
+                val t1 = v_kcore
+                val c1 = iter.prefix.get(0)
+                logError(c1.toString)
+                val c2 = 0
+                if (v_kcore < size + 1) {
+                  break
+                }
               }
               case None => break
             }
