@@ -3,6 +3,7 @@ package br.ufmg.cs.systems.fractal.apps
 import br.ufmg.cs.systems.fractal.computation.{Computation, Refrigerator}
 import br.ufmg.cs.systems.fractal.graph.Edge
 import br.ufmg.cs.systems.fractal._
+import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator
 import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, VertexInducedSubgraph}
 import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -107,6 +108,7 @@ object MaximalCliquesListing extends Logging {
     addCliques(s)
 
     logWarning("Result: " + cliques.toString)
+    logWarning(KClistEnumerator.count.toString)
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
     fc.stop()

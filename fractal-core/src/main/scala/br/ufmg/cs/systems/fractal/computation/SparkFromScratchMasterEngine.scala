@@ -411,7 +411,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         breakable { while (iter.hasNext) {
           val u = iter.nextElem()
           val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
-          val t = iter.prefix.size() + iter.getAdditionalSize
+          val prefix = iter.prefix
+          val t = prefix.size() + iter.getAdditionalSize
           if (isVertexOk(u, graph) && !(t == 0 && graph.getVertexNeighbours(u).size() <= size)) {
             if (t != 0 /*first computation*/ && t < size) {
               addWords = 0

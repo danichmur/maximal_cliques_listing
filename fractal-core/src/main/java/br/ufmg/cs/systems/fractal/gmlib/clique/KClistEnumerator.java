@@ -22,7 +22,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
   // used to clear the dag
   private DagCleaner dagCleaner;
-
+  public static int count = 0;
   public KClistEnumerator() {
   }
 
@@ -68,6 +68,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
   @Override
   public SubgraphEnumerator<S> extend(int u) {
+    count++;
     //long time = System.nanoTime();
     KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.
             nextComputation().getSubgraphEnumerator();

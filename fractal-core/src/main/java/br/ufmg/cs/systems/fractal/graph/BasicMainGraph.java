@@ -658,7 +658,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
             vertexNeighborhoods[edge.getDestinationId()] = vertexNeighbourhood;
          }
 
-         vertexNeighbourhood.addEdge(edge.getSourceId(), edge.getEdgeId());
+         //vertexNeighbourhood.addEdge(edge.getSourceId(), edge.getEdgeId());
       } catch (ArrayIndexOutOfBoundsException e) {
          LOG.error("Tried to access index " + edge.getDestinationId() + " of array with size " + vertexNeighborhoods.length);
          LOG.error("vertexIndexF.length=" + vertexIndexF.length);
