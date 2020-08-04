@@ -112,7 +112,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
             }
 
           case None =>
-            SparkMasterEngine [S] (sparkContext, config, isVertexOk, size)
+            SparkMasterEngine [S] (sparkContext, config)
         }
 
         assert (_masterEngine.step == this.step,

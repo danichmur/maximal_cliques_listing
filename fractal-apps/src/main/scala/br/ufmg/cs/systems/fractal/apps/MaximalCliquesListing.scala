@@ -101,47 +101,14 @@ object MaximalCliquesListing extends Logging {
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
-    val N = 4 //cliques count
     val time = System.currentTimeMillis()
-    fractalGraph.set("kcores", kcore_map)
-
-//    while (cliques.size < N && explorationSteps >= 2) {
-//      if (!Refrigerator.isEmpty) {
-//        Refrigerator.freeze = true
-//        val foundFistFrozenData = Refrigerator.pollFirstAvailable(explorationSteps, cliquesIdx)
-//        if (foundFistFrozenData != null) {
-//          fractalGraph.set("cliquesize", explorationSteps + 1)
-//          Refrigerator.current = foundFistFrozenData
-//          addCliques(explorationSteps - foundFistFrozenData.freezePrefix.size)
-//        } else {
-//          explorationSteps -= 1
-//        }
-//      } else if (Refrigerator.freeze) {
-//        //The frozen list is empty, we are done here
-//        explorationSteps = 0
-//      } else {
-//        fractalGraph.set("cliquesize", 71)
-//        addCliques(71)
-//        explorationSteps -= 1
-//      }
-
-      logWarning(s"explorationSteps: ${explorationSteps + 1} done")
 
     val s = 71
-    fractalGraph.set("cliquesize", s)
-
     addCliques(s)
-
-
-//      if (cliques.size > N) {
-//        cliques = cliques.slice(0, N)
-//      }
-//    }
 
     logWarning("Result: " + cliques.toString)
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
-    //Refrigerator.close()
     fc.stop()
     sc.stop()
   }
