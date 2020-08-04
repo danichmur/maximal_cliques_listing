@@ -42,7 +42,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
   import SparkFromScratchMasterEngine._
 
   def config: SparkConfiguration[S] = _config
-  
+
   def parentOpt: Option[SparkMasterEngine[S]] = _parentOpt
   
   var masterActorRef: ActorRef = _
@@ -53,8 +53,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     init()
   }
 
+
   def this(_sc: SparkContext, config: SparkConfiguration[S],
-      parent: SparkMasterEngine[S]) {
+           parent: SparkMasterEngine[S]) {
     this (config, Option(parent))
     sc = _sc
     init()
@@ -139,6 +140,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       curr = curr.parentOpt.get
       cc = curr.config.computationContainer[S].withComputationAppended(cc)
     }
+
+
 
     // configure custom ProcessComputeFunc and aggregations
     val processComputeFunc = getProcessComputeFunc(egAccums, awAccums)
@@ -311,27 +314,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       var lastStepConsumer: LastStepConsumer[S] = _
 
       def apply(iter: SubgraphEnumerator[S], c: Computation[S]): Long = {
+        //logError("APPLY")
         val config = c.getConfig
-        val size = config.getInteger("cliquesize", 1)
-
-        val graph = config.getMainGraph[MainGraph[_,_]]()
-
-        //.getVertex(0).getVertexOriginalId
-        val kcores : HashMap[Int, Int] = config
-          .asInstanceOf[SparkConfiguration[VertexInducedSubgraph]]
-          .getValue("kcores", HashMap.empty)
-          .asInstanceOf[HashMap[Int, Int]]
-
-        val isVertexOk = (u : Int) => {
-          val rigthU = graph.getVertex(u).getVertexOriginalId
-          kcores.get(rigthU) match {
-            case Some(v_kcore) => v_kcore > size
-            case None => false
-          }
-        }
 
         val t = iter.prefix.size() + iter.getDag.size()
-        if (c.getDepth != 0 && t < size) {
+        if (c.getDepth != 0 && t < Refrigerator.size) {
           if (iter.prefix.size != 0 && iter.getDag.size() == 0) {
             //TODO save clique?
             //logInfo(s"SAVING C ${iter.getDag} ${iter.prefix}")
@@ -386,7 +373,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           var start = System.currentTimeMillis
 
-          val ret = processCompute(iter, c, size, isVertexOk)
+          val ret = processCompute(iter, c, Refrigerator.size, Refrigerator.isVertexOk)
           var elapsed = System.currentTimeMillis - start
 
           logInfo (s"WorkStealingMode internal=${config.internalWsEnabled()}" +
@@ -398,7 +385,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           // setup work-stealing system
           start = System.currentTimeMillis
           if (config.wsEnabled()) {
-            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]) = processCompute(iter, c, size, isVertexOk)
+            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]) = processCompute(iter, c, Refrigerator.size, Refrigerator.isVertexOk)
             val gtagExecutorActor = execEngine.slaveActorRef
             workStealingSys = new WorkStealingSystem[S](
               processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
@@ -411,27 +398,25 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             s" partitionId=${c.getPartitionId} took ${elapsed} ms")
 
           ret
-        } else processCompute(iter, c, size, isVertexOk)
+        } else processCompute(iter, c, Refrigerator.size, Refrigerator.isVertexOk)
       }
 
       private def hasNextComputation(iter: SubgraphEnumerator[S],
-          c: Computation[S], nextComp: Computation[S], size: Int, isVertexOk: Int => Boolean): Long = {
+          c: Computation[S], nextComp: Computation[S], size: Int, isVertexOk: (Int, MainGraph[_, _]) => Boolean): Long = {
         var currentSubgraph: S = null.asInstanceOf[S]
         var addWords = 0L
         var subgraphsGenerated = 0L
         var ret = 0L
 
-        val nullify = () => {
-          addWords = 0
-          subgraphsGenerated = 0
-          ret = 0
-        }
         breakable { while (iter.hasNext) {
           val u = iter.nextElem()
-          if (isVertexOk(u)) {
-            val t = iter.prefix.size() + iter.getAdditionalSize
+          val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
+          val t = iter.prefix.size() + iter.getAdditionalSize
+          if (isVertexOk(u, graph) && !(t == 0 && graph.getVertexNeighbours(u).size() <= size)) {
             if (t != 0 /*first computation*/ && t < size) {
-              nullify
+              addWords = 0
+              subgraphsGenerated = 0
+              ret = 0
               break
             }
             iter.extend(u)
@@ -482,7 +467,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         iter: SubgraphEnumerator[S],
         c: Computation[S],
         size: Int,
-        isVertexOk: Int => Boolean
+        isVertexOk: (Int, MainGraph[_, _]) => Boolean
       ): Long = {
         val nextComp = c.nextComputation()
 

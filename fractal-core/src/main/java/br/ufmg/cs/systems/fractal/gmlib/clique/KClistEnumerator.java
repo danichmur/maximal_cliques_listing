@@ -68,11 +68,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
   @Override
   public SubgraphEnumerator<S> extend(int u) {
-    //int u = nextElem();
-
-//    if (prefix.size() == 0 && dag.size() == 0) {
-//      System.out.println(u);
-//    }
+    //long time = System.nanoTime();
     KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.
             nextComputation().getSubgraphEnumerator();
 
@@ -84,8 +80,12 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
       extendFromDag(dag, nextEnumerator.dag, u);
     }
 
+
     subgraph.addWord(u);
     shouldRemoveLastWord = true;
+
+//    time = (System.nanoTime() - time);
+//    System.out.println("extend " + time / 1e9);
 
     return nextEnumerator;
   }

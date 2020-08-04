@@ -17,6 +17,8 @@ import org.apache.spark.storage.StorageLevel
 
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.collection.immutable.HashMap
+import scala.collection.{immutable, mutable}
 import scala.collection.mutable.Map
 import scala.reflect.{ClassTag, classTag}
 
@@ -79,6 +81,23 @@ case class Fractoid [S <: Subgraph : ClassTag](
    */
   private var masterEngineOpt: Option[SparkMasterEngine[S]] = None
 
+  private val size = config.getInteger("cliquesize", 1)
+
+  private val graph = config.getMainGraph[MainGraph[_,_]]()
+
+  private val kcores : HashMap[Int, Int] = config
+    .asInstanceOf[SparkConfiguration[VertexInducedSubgraph]]
+    .getValue("kcores", HashMap.empty)
+    .asInstanceOf[HashMap[Int, Int]]
+
+  private val isVertexOk = (u : Int) => {
+    val rigthU = graph.getVertex(u).getVertexOriginalId
+    kcores.get(rigthU) match {
+      case Some(v_kcore) => v_kcore > size - 1
+      case None => false
+    }
+  }
+
   private def masterEngine: SparkMasterEngine[S] = synchronized {
     masterEngineOpt match {
       case None =>
@@ -93,7 +112,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
             }
 
           case None =>
-            SparkMasterEngine [S] (sparkContext, config)
+            SparkMasterEngine [S] (sparkContext, config, isVertexOk, size)
         }
 
         assert (_masterEngine.step == this.step,
@@ -299,6 +318,18 @@ case class Fractoid [S <: Subgraph : ClassTag](
     }
 
     idx.map(x => x.flatMap((v : Any) => toIntIdx(v)))
+  }
+
+
+  def vertexIdTooriginalId(id: Int): Int = {
+    val graph = config.getMainGraph[MainGraph[_,_]]()
+    graph.getVertex(id).getVertexOriginalId
+  }
+
+  def setNew(explorationSteps: Int,
+             kcore_map: immutable.Map[Int, Int]): Unit = {
+    Refrigerator.size = explorationSteps
+    Refrigerator.kcores = kcore_map
   }
 
   def explore(n: Int): Fractoid[S] = {

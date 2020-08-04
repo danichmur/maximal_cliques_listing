@@ -4,11 +4,13 @@ import java.util
 import java.util.HashSet
 
 import br.ufmg.cs.systems.fractal.gmlib.clique.FrozenDataHolderOld
+import br.ufmg.cs.systems.fractal.graph.MainGraph
 import br.ufmg.cs.systems.fractal.util.{SynchronizedDynamicGraphV2, SynchronizedNodeBuilder}
 import com.twitter.cassovary.graph.node.SynchronizedDynamicNode
 import net.openhft.chronicle.map.ChronicleMap
 
-import scala.collection.mutable
+import scala.collection.immutable.HashMap
+import scala.collection.{immutable, mutable}
 
 object Refrigerator {
   var freeze : Boolean = false
@@ -18,8 +20,22 @@ object Refrigerator {
   var frozenMap: ChronicleMap[Integer, Array[Byte]] = _
   var availableSizes = new mutable.TreeSet[Int]()
   private var lock = new AnyRef{}
-
   var counter : Int = 0
+
+
+  var size : Int = 0
+  var kcores :  immutable.Map[Int, Int] = _
+
+
+  val isVertexOk: (Int, MainGraph[_, _]) => Boolean = (u : Int, graph : MainGraph[_, _]) => {
+    val rigthU = graph.getVertex(u).getVertexOriginalId
+    kcores.get(rigthU) match {
+      case Some(v_kcore) => v_kcore > size - 1
+      case None => false
+    }
+  }
+
+
 
   def addFrozenData(pFrozenData: FrozenDataHolder): Unit = {
     if (pFrozenData.getSize <= 2) { //get rid of single edges

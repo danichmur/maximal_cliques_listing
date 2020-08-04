@@ -7,12 +7,15 @@ import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, VertexInducedSu
 import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging}
 import org.apache.spark.{SparkConf, SparkContext}
 
+import scala.collection.mutable
+
 case class CliquesList(
                         fractalGraph: FractalGraph,
                         commStrategy: String,
                         numPartitions: Int,
                         explorationSteps: Int,
-                        readyCliques: List[Set[Int]]
+                        readyCliques: List[Set[Int]],
+                        kcore_map: Map[Int, Int]
                       ) extends FractalSparkApp {
 
   var foundedCliques : (List[Set[Int]], List[Set[Int]]) = (List(), List())
@@ -35,11 +38,15 @@ case class CliquesList(
     //Fractoid with the initial state for cliques
     val initialFractoid = fractalGraph.vfractoid.expand(1)
 
-    val cliquesRes = initialFractoid.
+    val testF = initialFractoid.
       //set("efilter", epredCallback(readyCliques)).
       set ("comm_strategy", commStrategy).
-      set ("num_partitions", numPartitions).
-      explore(explorationSteps)
+      set ("num_partitions", numPartitions)
+
+    testF.setNew(explorationSteps,kcore_map)
+
+      val cliquesRes =
+        testF.explore(explorationSteps)
 
     val (_, elapsed) = FractalSparkRunner.time {cliquesRes.compute()}
 
@@ -67,14 +74,14 @@ object MaximalCliquesListing extends Logging {
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
 
-    val graphPath = "/Users/danielmuraveyko/Desktop/for_kcore_18"
+    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_18"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
 
     val kcore_list = Kcore.countKcore(sc, graphPath)
     val kcore = kcore_list.map(_._2).distinct
-    val kcore_map = kcore_list.toMap
+    val kcore_map = Kcore.countKcore(sc, graphPath).map(verexId => (verexId._1.toInt, verexId._2)).toMap
 
     val fc = new FractalContext(sc)
 
@@ -88,7 +95,7 @@ object MaximalCliquesListing extends Logging {
     var cliquesIdx : List[Set[Int]] = List()
 
     val addCliques = (steps : Int) => {
-      val app = CliquesList(fractalGraph, commStrategy, numPartitions, steps, cliquesIdx)
+      val app = CliquesList(fractalGraph, commStrategy, numPartitions, steps, cliquesIdx, kcore_map)
       val (subgraphs, original_cliques) = app.findCliques()
       cliques = cliques ++ original_cliques
       cliquesIdx = cliquesIdx ++ subgraphs
@@ -122,7 +129,9 @@ object MaximalCliquesListing extends Logging {
 
     val s = 71
     fractalGraph.set("cliquesize", s)
+
     addCliques(s)
+
 
 //      if (cliques.size > N) {
 //        cliques = cliques.slice(0, N)
