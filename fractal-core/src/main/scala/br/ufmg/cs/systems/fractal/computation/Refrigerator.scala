@@ -17,6 +17,7 @@ object Refrigerator {
 
   var frozenMap: ChronicleMap[Integer, Array[Byte]] = _
   var availableSizes = new mutable.TreeSet[Int]()
+  private var lock = new AnyRef{}
 
   var counter : Int = 0
 
@@ -46,8 +47,7 @@ object Refrigerator {
       .create
   }
 
-  def pollFirstAvailable(size : Int, cliques : List[Set[Int]]): FrozenDataHolder = {
-    synchronized {
+  def pollFirstAvailable(size : Int, cliques : List[Set[Int]]): FrozenDataHolder = lock.synchronized{
       var availableSize = availableSizes.lastKey
       while (availableSizes.nonEmpty) {
         if (availableSize >= size) {
@@ -81,7 +81,6 @@ object Refrigerator {
         }
       }
       null
-    }
   }
 
   def makeDummyGraph(): Array[Byte] = {

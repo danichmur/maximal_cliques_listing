@@ -120,8 +120,9 @@ object MaximalCliquesListing extends Logging {
 
       logWarning(s"explorationSteps: ${explorationSteps + 1} done")
 
-    fractalGraph.set("cliquesize", 71)
-    addCliques(71)
+    val s = 71
+    fractalGraph.set("cliquesize", s)
+    addCliques(s)
 
 //      if (cliques.size > N) {
 //        cliques = cliques.slice(0, N)

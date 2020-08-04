@@ -67,10 +67,12 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   }
 
   @Override
-  public SubgraphEnumerator<S> extend() {
-    int u = nextElem();
+  public SubgraphEnumerator<S> extend(int u) {
+    //int u = nextElem();
 
-
+//    if (prefix.size() == 0 && dag.size() == 0) {
+//      System.out.println(u);
+//    }
     KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.
             nextComputation().getSubgraphEnumerator();
 

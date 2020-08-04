@@ -110,7 +110,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
     * in-place for further extensions (returns 'this').
     * @return the updated extended subgraph enumerator
     */
-   public SubgraphEnumerator<S> extend() {
+   public SubgraphEnumerator<S> extend(int u) {
       next();
       return this;
    }
