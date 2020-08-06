@@ -24,7 +24,7 @@ object Refrigerator {
 
 
   var size : Int = 0
-  var kcores :  immutable.Map[Int, Int] = _
+  var kcores : immutable.Map[Int, Int] = _
 
 
   val isVertexOk: (Int, MainGraph[_, _]) => Boolean = (u : Int, graph : MainGraph[_, _]) => {

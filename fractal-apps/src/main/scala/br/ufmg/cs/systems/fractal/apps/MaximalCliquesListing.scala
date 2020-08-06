@@ -108,7 +108,7 @@ object MaximalCliquesListing extends Logging {
     addCliques(s)
 
     logWarning("Result: " + cliques.toString)
-    logWarning(KClistEnumerator.count.toString)
+    logWarning("extends: " + KClistEnumerator.count.toString)
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
     fc.stop()

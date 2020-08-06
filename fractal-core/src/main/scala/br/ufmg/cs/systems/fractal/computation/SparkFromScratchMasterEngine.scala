@@ -407,29 +407,30 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         var addWords = 0L
         var subgraphsGenerated = 0L
         var ret = 0L
+        val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
 
         breakable { while (iter.hasNext) {
           val u = iter.nextElem()
-          val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
-          val prefix = iter.prefix
-          val t = prefix.size() + iter.getAdditionalSize
-          if (isVertexOk(u, graph) && !(t == 0 && graph.getVertexNeighbours(u).size() <= size)) {
-            if (t != 0 /*first computation*/ && t < size) {
-              addWords = 0
-              subgraphsGenerated = 0
-              ret = 0
-              break
+          val prefix = iter.prefix.size()
+          val t = prefix + iter.getAdditionalSize
+         // val rigthU = graph.getVertex(u).getVertexOriginalId
+          val neighbours = graph.getVertexNeighbours(u).size()
+
+          if (
+            isVertexOk(u, graph) &&
+              !(t == 0 && neighbours <= size) &&
+              (t == 0 /*first computation*/ || (t >= size && (neighbours + prefix) >= size))
+          ) {
+              iter.extend(u)
+              currentSubgraph = iter.getSubgraph
+              addWords += 1
+              if (c.filter(currentSubgraph)) {
+                subgraphsGenerated += 1
+                currentSubgraph.nextExtensionLevel()
+                ret += nextComp.compute(currentSubgraph)
+                currentSubgraph.previousExtensionLevel()
+              }
             }
-            iter.extend(u)
-            currentSubgraph = iter.getSubgraph
-            addWords += 1
-            if (c.filter(currentSubgraph)) {
-              subgraphsGenerated += 1
-              currentSubgraph.nextExtensionLevel()
-              ret += nextComp.compute(currentSubgraph)
-              currentSubgraph.previousExtensionLevel()
-            }
-          }
         }}
         awAccums(c.getDepth).add(addWords)
         egAccums(c.getDepth).add(subgraphsGenerated)
