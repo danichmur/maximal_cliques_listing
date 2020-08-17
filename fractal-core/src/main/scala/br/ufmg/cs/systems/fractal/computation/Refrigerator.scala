@@ -21,6 +21,7 @@ object Refrigerator {
   var availableSizes = new mutable.TreeSet[Int]()
   private var lock = new AnyRef{}
   var counter : Int = 0
+  var graphCounter : Int = 0
 
 
   var size : Int = 0
@@ -30,7 +31,7 @@ object Refrigerator {
   val isVertexOk: (Int, MainGraph[_, _]) => Boolean = (u : Int, graph : MainGraph[_, _]) => {
     val rigthU = graph.getVertex(u).getVertexOriginalId
     kcores.get(rigthU) match {
-      case Some(v_kcore) => v_kcore > size - 1
+      case Some(v_kcore) => v_kcore > size
       case None => false
     }
   }

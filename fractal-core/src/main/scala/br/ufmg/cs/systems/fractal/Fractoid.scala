@@ -299,7 +299,6 @@ case class Fractoid [S <: Subgraph : ClassTag](
   }
 
   def collectSubgraphs(): List[Set[Int]] = {
-
     def toInt(x: Any): Option[Int] = x match {
       case i: Int => Some(i)
       case _ => None
@@ -317,6 +316,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
       case _ => None
     }
 
+    logWarning("graphs: " + Refrigerator.graphCounter)
     idx.map(x => x.flatMap((v : Any) => toIntIdx(v)))
   }
 

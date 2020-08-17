@@ -401,6 +401,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         } else processCompute(iter, c, Refrigerator.size, Refrigerator.isVertexOk)
       }
 
+      var counter = 0
+
       private def hasNextComputation(iter: SubgraphEnumerator[S],
           c: Computation[S], nextComp: Computation[S], size: Int, isVertexOk: (Int, MainGraph[_, _]) => Boolean): Long = {
         var currentSubgraph: S = null.asInstanceOf[S]
@@ -408,30 +410,36 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         var subgraphsGenerated = 0L
         var ret = 0L
         val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
-
-        breakable { while (iter.hasNext) {
+        counter = counter + 1
+        while (iter.hasNext) {
           val u = iter.nextElem()
+
           val prefix = iter.prefix.size()
           val t = prefix + iter.getAdditionalSize
-         // val rigthU = graph.getVertex(u).getVertexOriginalId
           val neighbours = graph.getVertexNeighbours(u).size()
+          // t = 0 is the first computation
+          val isSizeNotOk = t == 0 && neighbours < size || t != 0 && t < size
 
-          if (
-            isVertexOk(u, graph) &&
-              !(t == 0 && neighbours <= size) &&
-              (t == 0 /*first computation*/ || (t >= size && (neighbours + prefix) >= size))
-          ) {
-              iter.extend(u)
-              currentSubgraph = iter.getSubgraph
-              addWords += 1
-              if (c.filter(currentSubgraph)) {
-                subgraphsGenerated += 1
-                currentSubgraph.nextExtensionLevel()
-                ret += nextComp.compute(currentSubgraph)
-                currentSubgraph.previousExtensionLevel()
-              }
+          if (!isSizeNotOk && isVertexOk(u, graph) && neighbours + prefix >= size) {
+            if (prefix == 0) {
+              Refrigerator.graphCounter += 1
             }
-        }}
+//
+//            logError(c1 + ": " + iter.prefix.toString + " U: " + u + " NEIG: " +
+//              graph.getVertexNeighbours(u).toString + " t: " + t + " " + " N+S: " + (neighbours + prefix)
+//            )
+
+            iter.extend(u)
+            currentSubgraph = iter.getSubgraph
+            addWords += 1
+            if (c.filter(currentSubgraph)) {
+              subgraphsGenerated += 1
+              currentSubgraph.nextExtensionLevel()
+              ret += nextComp.compute(currentSubgraph)
+              currentSubgraph.previousExtensionLevel()
+            }
+          }
+        }
         awAccums(c.getDepth).add(addWords)
         egAccums(c.getDepth).add(subgraphsGenerated)
 
@@ -444,9 +452,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         var addWords = 0L
         var subgraphsGenerated = 0L
 
-        val wordIds = iter.getWordIds()
+        val wordIds = iter.getWordIds
         if (wordIds != null) {
-          lastStepConsumer.set(iter.getSubgraph(), c)
+          lastStepConsumer.set(iter.getSubgraph, c)
           wordIds.forEach(lastStepConsumer)
           addWords += lastStepConsumer.addWords
           subgraphsGenerated += lastStepConsumer.subgraphsGenerated

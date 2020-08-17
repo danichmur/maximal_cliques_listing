@@ -73,6 +73,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.
             nextComputation().getSubgraphEnumerator();
 
+
+    //System.out.println("EXTEND: " + u + " " + prefix.toString());
     nextEnumerator.clearDag();
 
     if (subgraph.getNumWords() == 0) {

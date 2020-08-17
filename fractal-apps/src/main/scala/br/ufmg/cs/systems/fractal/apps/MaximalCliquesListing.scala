@@ -44,7 +44,7 @@ case class CliquesList(
       set ("comm_strategy", commStrategy).
       set ("num_partitions", numPartitions)
 
-    testF.setNew(explorationSteps,kcore_map)
+    testF.setNew(explorationSteps, kcore_map)
 
       val cliquesRes =
         testF.explore(explorationSteps)
@@ -75,7 +75,7 @@ object MaximalCliquesListing extends Logging {
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
 
-    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_18"
+    val graphPath = "/Users/danielmuraveyko/Desktop/for_kcore_20"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -104,12 +104,14 @@ object MaximalCliquesListing extends Logging {
 
     val time = System.currentTimeMillis()
 
-    val s = 71
+    val s = 79
     addCliques(s)
 
-    logWarning("Result: " + cliques.toString)
     logWarning("extends: " + KClistEnumerator.count.toString)
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
+    for(r <- cliques) {
+      println(r)
+    }
 
     fc.stop()
     sc.stop()
