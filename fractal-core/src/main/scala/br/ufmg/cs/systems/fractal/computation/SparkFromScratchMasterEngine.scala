@@ -6,11 +6,12 @@ import java.util.function.IntConsumer
 
 import akka.actor._
 import br.ufmg.cs.systems.fractal.conf.SparkConfiguration
-import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolderOld, GlobalFreezeHolderOld}
+import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolderOld, GlobalFreezeHolderOld, KClistEnumerator}
 import br.ufmg.cs.systems.fractal.graph.MainGraph
 import br.ufmg.cs.systems.fractal.subgraph._
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
 import br.ufmg.cs.systems.fractal.util.{Logging, ProcessComputeFunc, SynchronizedNodeBuilder}
+import breeze.linalg.max
 import com.koloboke.collect.map.IntObjMap
 import com.koloboke.collect.map.hash.HashIntObjMaps
 import com.twitter.cassovary.graph.node.SynchronizedDynamicNode
@@ -406,31 +407,31 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       private def hasNextComputation(iter: SubgraphEnumerator[S],
           c: Computation[S], nextComp: Computation[S], size: Int, isVertexOk: (Int, MainGraph[_, _]) => Boolean): Long = {
         var currentSubgraph: S = null.asInstanceOf[S]
+
         var addWords = 0L
         var subgraphsGenerated = 0L
         var ret = 0L
         val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
-        counter = counter + 1
+        counter += 1
         while (iter.hasNext) {
           val u = iter.nextElem()
 
-          val prefix = iter.prefix.size()
-          val t = prefix + iter.getAdditionalSize
+          val prefixSize = iter.prefix.size()
+          val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
           val neighbours = graph.getVertexNeighbours(u).size()
-          // t = 0 is the first computation
-          val isSizeNotOk = t == 0 && neighbours < size || t != 0 && t < size
+          // size = cliqueSize - 1
+          // maxPossibleSize = 0 is the first computation
+          val isSizeNotOk = maxPossibleSize == 0 && neighbours < size || maxPossibleSize != 0 && maxPossibleSize < size
 
-          if (!isSizeNotOk && isVertexOk(u, graph) && neighbours + prefix >= size) {
-            if (prefix == 0) {
+          if (!isSizeNotOk && isVertexOk(u, graph) && neighbours + prefixSize >= size) {
+            if (prefixSize == 0) {
               Refrigerator.graphCounter += 1
             }
-//
-//            logError(c1 + ": " + iter.prefix.toString + " U: " + u + " NEIG: " +
-//              graph.getVertexNeighbours(u).toString + " t: " + t + " " + " N+S: " + (neighbours + prefix)
-//            )
 
             iter.extend(u)
+
             currentSubgraph = iter.getSubgraph
+
             addWords += 1
             if (c.filter(currentSubgraph)) {
               subgraphsGenerated += 1
@@ -438,8 +439,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               ret += nextComp.compute(currentSubgraph)
               currentSubgraph.previousExtensionLevel()
             }
+
           }
         }
+
         awAccums(c.getDepth).add(addWords)
         egAccums(c.getDepth).add(subgraphsGenerated)
 
@@ -454,6 +457,28 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
         val wordIds = iter.getWordIds
         if (wordIds != null) {
+          val printB = false
+
+          if (printB && wordIds.size() > 0) {
+            KClistEnumerator.count += 1
+
+            val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
+
+            val cur = wordIds.cursor()
+            print("add ")
+
+            while (cur.moveNext()) {
+              print(graph.getVertex(cur.elem()).getVertexOriginalId)
+            }
+            print(" to Set(")
+            var i = 0
+            while (i < iter.prefix.size) {
+              if (i != 0) print(", ")
+              print(graph.getVertex(iter.prefix.getUnchecked(i)).getVertexOriginalId)
+              i += 1
+            }
+            System.out.println(")")
+          }
           lastStepConsumer.set(iter.getSubgraph, c)
           wordIds.forEach(lastStepConsumer)
           addWords += lastStepConsumer.addWords

@@ -66,6 +66,8 @@ dependencies {
 
     compile group: 'net.openhft', name: 'chronicle-map', version: '3.17.8'
 
+    //compile group: 'com.esotericsoftware', name: 'kryo', version: '5.0.0-RC1'
+
     compile ('com.twitter:cassovary-core_2.11:7.1.0'){
         version{
             strictly '7.1.0'

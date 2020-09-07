@@ -613,9 +613,12 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
       // TODO: What if input only contains one of the edges? Should we enforce
       // this via a sanity check?
       // TODO: Handle this when directed graphs
-      if (edge.getSourceId() > edge.getDestinationId()) {
-         return this;
-      }
+
+      //TODO DM: DO WE NEED THIS???
+//      if (this.getVertex(edge.getSourceId()).getVertexOriginalId() > this.getVertex(edge.getDestinationId()).getVertexOriginalId()) {
+//         System.out.println("whoupse " + edge);
+//         return this;
+//      }
 
       if (edge.getEdgeId() == -1) {
          edge.setEdgeId(numEdges);

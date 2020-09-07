@@ -86,13 +86,13 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
 
       if (!isEdgeLabelled) {
          int from, to;
-         if (vertexId < neighborId) {
+        // if (vertexId < neighborId) {
             from = vertexId;
             to = neighborId;
-         } else {
-            from = neighborId;
-            to = vertexId;
-         }
+//         } else {
+//            from = neighborId;
+//            to = vertexId;
+//         }
          return createEdge(from, to);
       } else {
          throw new RuntimeException(

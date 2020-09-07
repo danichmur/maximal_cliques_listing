@@ -19,10 +19,11 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   // TODO SynchronizedDynamicGraphV3 dag;
   // current clique DAG
   private IntObjMap<IntArrayList> dag;
-
   // used to clear the dag
   private DagCleaner dagCleaner;
   public static int count = 0;
+  public static long t = 0;
+
   public KClistEnumerator() {
   }
 
@@ -33,6 +34,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   }
 
   @Override
+  //TODO: WHY DO I NEED THIS????
   public void rebuildState() {
     dag.clear();
     if (subgraph.getNumWords() == 0) return;
@@ -48,7 +50,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
       currentDag = dag;
       dag = aux;
       dag.clear();
-      extendFromDag(currentDag, dag, vertices.get(i));
+      extendFromDag(computation.getConfig().getMainGraph(), currentDag, dag, vertices.get(i));
     }
   }
 
@@ -66,30 +68,52 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     }
   }
 
+  static boolean print = false;
+
   @Override
   public SubgraphEnumerator<S> extend(int u) {
-    count++;
-    //long time = System.nanoTime();
-    KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.
-            nextComputation().getSubgraphEnumerator();
+
+//    if (print) {
+//          System.out.print("{ ");
+//    for (int i = 0; i < this.prefix.size(); ++i) {
+//      System.out.print(this.prefix.getUnchecked(i) + " ");
+//    }
+//    System.out.println("} " + u + " " + this.dag.keySet());
+//
+//      // long time = System.nanoTime();
+//
+//    }
+
+    KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.nextComputation().getSubgraphEnumerator();
 
 
     //System.out.println("EXTEND: " + u + " " + prefix.toString());
     nextEnumerator.clearDag();
 
     if (subgraph.getNumWords() == 0) {
+      //System.out.println(subgraph + " " + u);
       extendFromGraph(subgraph.getConfig().getMainGraph(), nextEnumerator.dag, u);
     } else {
-      extendFromDag(dag, nextEnumerator.dag, u);
+      extendFromDag(subgraph.getConfig().getMainGraph(), dag, nextEnumerator.dag, u);
     }
 
 
     subgraph.addWord(u);
     shouldRemoveLastWord = true;
 
-//    time = (System.nanoTime() - time);
-//    System.out.println("extend " + time / 1e9);
 
+//    if (print) {
+//      System.out.print("{ ");
+//      IntArrayList vertices = subgraph.getVertices();
+//      for (int i = 0; i < vertices.size(); ++i) {
+//        System.out.print(vertices.getUnchecked(i) + " ");
+//      }
+//
+//      System.out.println("} " + " " + nextEnumerator.dag.keySet());
+//  //    System.out.println();
+//        // t += (System.nanoTime() - time);
+//  //    System.out.println("extend " + time / 1e9);
+//    }
     return nextEnumerator;
   }
 
@@ -103,8 +127,20 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
    * Extend this enumerator from a previous DAG
    * @param u vertex being added to the current subgraph
    */
-  public static void extendFromDag(IntObjMap<IntArrayList> currentDag,
-                                   IntObjMap<IntArrayList> dag, int u) {
+  public void extendFromDag(MainGraph graph, IntObjMap<IntArrayList> currentDag,
+                            IntObjMap<IntArrayList> dag, int u) {
+
+    count++;
+    if (print) {
+      System.out.print("add " + graph.getVertex(u).getVertexOriginalId() + " to Set(");
+      for (int i = 0; i < prefix.size(); i++) {
+        if (i != 0) {
+          System.out.print(", ");
+        }
+        System.out.print(graph.getVertex(prefix.getUnchecked(i)).getVertexOriginalId());
+      }
+      System.out.println(")");
+    }
     IntArrayList orderedVertices = currentDag.get(u);
 
     if (orderedVertices == null) {
@@ -121,7 +157,9 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         continue;
       }
       Utils.sintersect(orderedVertices, orderedVertices2,
-              i + 1, orderedVertices.size(),
+              //TODO
+              //i + 1, orderedVertices.size(),
+              0, orderedVertices.size(),
               0, orderedVertices2.size(), target);
       dag.put(v, target);
     }
@@ -133,6 +171,12 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
    */
   private static void extendFromGraph(MainGraph graph,
                                       IntObjMap<IntArrayList> dag, int u) {
+    count++;
+
+
+    if (print) {
+      System.out.println("start with " + graph.getVertex(u).getVertexOriginalId());
+    }
     VertexNeighbourhood neighborhood = graph.getVertexNeighbourhood(u);
 
     if (neighborhood == null) {
@@ -145,9 +189,10 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
     for (int i = 0; i < orderedVertices.size(); ++i) {
       int v = orderedVertices.getUnchecked(i);
-      if (v > u) {
+      //TODO no need to check this?
+      //if (v > u) {
         dag.put(v, IntArrayListPool.instance().createObject());
-      }
+      //}
     }
 
     IntObjCursor<IntArrayList> cur = dag.cursor();
@@ -161,7 +206,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
       for (int j = 0; j < orderedVertices2.size(); ++j) {
         int w = orderedVertices2.getUnchecked(j);
-        if (w > v && dag.containsKey(w)) {
+        //if (w > v && dag.containsKey(w)) {
+        if (dag.containsKey(w)) {
           cur.value().add(w);
         }
       }
@@ -169,6 +215,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   }
 
 
+  @Override
   public IntObjMap<IntArrayList> getDag(){
     return dag;
   }

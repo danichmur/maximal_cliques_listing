@@ -31,7 +31,7 @@ object Refrigerator {
   val isVertexOk: (Int, MainGraph[_, _]) => Boolean = (u : Int, graph : MainGraph[_, _]) => {
     val rigthU = graph.getVertex(u).getVertexOriginalId
     kcores.get(rigthU) match {
-      case Some(v_kcore) => v_kcore > size
+      case Some(v_kcore) => v_kcore >= size
       case None => false
     }
   }
