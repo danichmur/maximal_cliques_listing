@@ -14,6 +14,8 @@ import com.koloboke.collect.map.hash.HashIntObjMaps;
 import com.koloboke.function.IntObjConsumer;
 import com.twitter.cassovary.graph.node.SynchronizedDynamicNode;
 
+import java.util.*;
+
 public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> {
 
   // TODO SynchronizedDynamicGraphV3 dag;
@@ -232,4 +234,96 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     }
   }
 
+
+
+
+  // data structure to store graph edges
+
+
+  // class to represent a graph object
+  private static  class Graph
+  {
+    static class Edge1
+    {
+      int source, dest;
+
+      Edge1(int source, int dest) {
+        this.source = source;
+        this.dest = dest;
+      }
+    }
+    // An array of Lists to represent adjacency list
+    List<List<Integer>> adjList = null;
+
+    // Constructor
+    Graph(List<Edge1> edges, int N)
+    {
+      adjList = new ArrayList<>();
+      for (int i = 0; i < N; i++) {
+        adjList.add(new ArrayList<>());
+      }
+
+      // add edges to the undirected graph
+      for (Edge1 edge: edges)
+      {
+        int src = edge.source;
+        int dest = edge.dest;
+
+        adjList.get(src).add(dest);
+        adjList.get(dest).add(src);
+      }
+    }
+  }
+    // Function to assign colors to vertices of graph
+    public static Map<Integer, Integer> colorGraph(MainGraph graph1)
+    {
+
+
+      int N = graph1.getNumberVertices();
+      List<Graph.Edge1> edges = new ArrayList<>();
+      br.ufmg.cs.systems.fractal.graph.Edge[] edges1 = graph1.getEdges();
+      int E = graph1.getNumberEdges();
+      for (int i = 0; i< E; i++) {
+        edges.add(new Graph.Edge1(
+                graph1.getVertex(edges1[i].getSourceId()).getVertexOriginalId(),
+                graph1.getVertex(edges1[i].getDestinationId()).getVertexOriginalId()
+        ));
+      }
+
+      Graph graph = new Graph(edges, N);
+
+      // stores color assigned to each vertex
+      Map<Integer, Integer> result = new HashMap<>();
+
+      // assign color to vertex one by one
+      for (int u = 0; u < N; u++)
+      {
+        // set to store color of adjacent vertices of u
+        Set<Integer> assigned = new TreeSet<>();
+
+        // check colors of adjacent vertices of u and store in set
+        for (int i : graph.adjList.get(u)) {
+          if (result.containsKey(i)) {
+            assigned.add(result.get(i));
+          }
+        }
+
+        // check for first free color
+        int color = 1;
+        for (Integer c: assigned) {
+          if (color != c) {
+            break;
+          }
+          color++;
+        }
+
+        // assigns vertex u the first available color
+        result.put(u, color);
+      }
+
+//      for (int v = 0; v < N; v++) {
+//        System.out.println(v + " -> "+ result.get(v));
+//      }
+      return result;
+  }
 }

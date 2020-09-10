@@ -402,7 +402,17 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         } else processCompute(iter, c, Refrigerator.size, Refrigerator.isVertexOk)
       }
 
-      var counter = 0
+      //TODO
+      var colors : Option[Map[Integer, Integer]] = None
+      private def getColors(c: Computation[S]): Map[Integer, Integer] = {
+        colors match {
+          case Some(c) => c
+          case None =>
+            val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
+            colors = Some(KClistEnumerator.colorGraph(graph))
+            getColors(c)
+        }
+      }
 
       private def hasNextComputation(iter: SubgraphEnumerator[S],
           c: Computation[S], nextComp: Computation[S], size: Int, isVertexOk: (Int, MainGraph[_, _]) => Boolean): Long = {
@@ -412,18 +422,32 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         var subgraphsGenerated = 0L
         var ret = 0L
         val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
-        counter += 1
+
+        val states = getColors(c)
+
         while (iter.hasNext) {
           val u = iter.nextElem()
 
           val prefixSize = iter.prefix.size()
           val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
-          val neighbours = graph.getVertexNeighbours(u).size()
+          val neighbours = graph.getVertexNeighbours(u)
+
+          //TODO
+          val cur = neighbours.cursor()
+          var arr : List[Int] = List(states(graph.getVertex(u).getVertexOriginalId))
+          while (cur.moveNext()) {
+            arr = states(graph.getVertex(cur.elem()).getVertexOriginalId) :: arr
+          }
+
+          //k-clique contains k colors
+          val uniqColors = arr.distinct.size
+
           // size = cliqueSize - 1
           // maxPossibleSize = 0 is the first computation
-          val isSizeNotOk = maxPossibleSize == 0 && neighbours < size || maxPossibleSize != 0 && maxPossibleSize < size
+          val isSizeOk = !(maxPossibleSize == 0 && uniqColors < size || maxPossibleSize != 0 && maxPossibleSize < size)
 
-          if (!isSizeNotOk && isVertexOk(u, graph) && neighbours + prefixSize >= size) {
+
+          if (isSizeOk && isVertexOk(u, graph) && uniqColors + prefixSize > size) {
             if (prefixSize == 0) {
               Refrigerator.graphCounter += 1
             }
