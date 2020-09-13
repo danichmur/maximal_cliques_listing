@@ -275,8 +275,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     }
   }
     // Function to assign colors to vertices of graph
-    public static Map<Integer, Integer> colorGraph(MainGraph graph1)
-    {
+    public static Map<Integer, Integer> colorGraph(MainGraph graph1) {
 
 
       int N = graph1.getNumberVertices();

@@ -433,7 +433,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val neighbours = graph.getVertexNeighbours(u)
 
           //TODO
-          val cur = neighbours.cursor()
+          val dag = iter.getDag
+          val cur = if (!dag.containsKey(u)) neighbours.cursor() else dag.get(u).cursor()
           var arr : List[Int] = List(states(graph.getVertex(u).getVertexOriginalId))
           while (cur.moveNext()) {
             arr = states(graph.getVertex(cur.elem()).getVertexOriginalId) :: arr
@@ -447,7 +448,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val isSizeOk = !(maxPossibleSize == 0 && uniqColors < size || maxPossibleSize != 0 && maxPossibleSize < size)
 
 
-          if (isSizeOk && isVertexOk(u, graph) && uniqColors + prefixSize > size) {
+          if (isSizeOk && /*isVertexOk(u, graph) &&*/ uniqColors + prefixSize > size) {
             if (prefixSize == 0) {
               Refrigerator.graphCounter += 1
             }
