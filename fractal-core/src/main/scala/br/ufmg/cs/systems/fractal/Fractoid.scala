@@ -85,19 +85,6 @@ case class Fractoid [S <: Subgraph : ClassTag](
 
   private val graph = config.getMainGraph[MainGraph[_,_]]()
 
-  private val kcores : HashMap[Int, Int] = config
-    .asInstanceOf[SparkConfiguration[VertexInducedSubgraph]]
-    .getValue("kcores", HashMap.empty)
-    .asInstanceOf[HashMap[Int, Int]]
-
-  private val isVertexOk = (u : Int) => {
-    val rigthU = graph.getVertex(u).getVertexOriginalId
-    kcores.get(rigthU) match {
-      case Some(v_kcore) => v_kcore > size - 1
-      case None => false
-    }
-  }
-
   private def masterEngine: SparkMasterEngine[S] = synchronized {
     masterEngineOpt match {
       case None =>
@@ -119,7 +106,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
           s"masterEngineNext=${_masterEngine.next}" +
           s" masterEngineStep=${_masterEngine.step} thisStep=${this.step}")
 
-        logInfo (s"Computing ${this}. Engine: ${_masterEngine}")
+       // logInfo (s"Computing ${this}. Engine: ${_masterEngine}")
         _masterEngine.next
 
         _masterEngine.finalizeComputation
@@ -157,7 +144,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
     : RDD[ResultSubgraph[_]] = {
     if (config.confs.contains(SparkConfiguration.COMPUTATION_CONTAINER)) {
       var thisWithOutput = withOutput(shouldOutput)
-      logInfo (s"Before setting path: ${thisWithOutput}")
+      //logInfo (s"Before setting path: ${thisWithOutput}")
       thisWithOutput = thisWithOutput.set(
         "output_path",
         s"${config.getOutputPath}-${step}"
@@ -165,7 +152,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
       //thisWithOutput.config.setOutputPath(
       //  s"${thisWithOutput.config.getOutputPath}-${step}")
 
-      logInfo (s"Output to get Subgraphs: ${this} ${thisWithOutput}")
+     // logInfo (s"Output to get Subgraphs: ${this} ${thisWithOutput}")
       val t = thisWithOutput.masterEngine.getSubgraphs
       t
     } else {
@@ -335,24 +322,24 @@ case class Fractoid [S <: Subgraph : ClassTag](
   def explore(n: Int): Fractoid[S] = {
     var currResult = this
     var results: List[Fractoid[S]] = List(currResult)
-    var numResults = 1
     while (currResult.parentOpt.isDefined) {
       currResult = currResult.parentOpt.get
       results = currResult :: results
-      numResults += 1
     }
 
     var i = 0
-    var j = numResults
     currResult = this
+
+    val startTag = System.currentTimeMillis
+
     while (i < n) {
       results.foreach { r =>
         currResult = currResult.handleNextResult(r)
-          //.copy(step = j)
-        j += 1
       }
       i += 1
     }
+    val elapsedTag = System.currentTimeMillis - startTag
+    logInfo (s"results.foreach took ${elapsedTag}")
 
     currResult
   }
@@ -450,13 +437,13 @@ case class Fractoid [S <: Subgraph : ClassTag](
   private def handleNextResult(result: Fractoid[S],
                                newConfig: SparkConfiguration[S] = config)
     : Fractoid[S] = if (result.mustSync) {
-    logInfo (s"Adding sync barrier between ${this} and ${result}")
+    //logInfo (s"Adding sync barrier between ${this} and ${result}")
     result.copy(scope = this.scope + 1,
       step = this.step + 1, parentOpt = Some(this))
   } else {
-    logInfo (s"Next result. Appending ${result} to ${this}")
+    //logInfo (s"Next result. Appending ${result} to ${this}")
     val nextContainer = result.getComputationContainer[S]
-    withNextComputation (nextContainer, newConfig)
+    withNextComputation(nextContainer, newConfig)
   }
 
   private def emptyComputation: Fractoid[S] = {
@@ -511,7 +498,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
    */
   def expand(n: Int): Fractoid[S] = {
     var curr = this
-    logInfo(s"ExpandBefore ${curr}")
+   // logInfo(s"ExpandBefore ${curr}")
     for (i <- 0 until n) {
 
       // first computation, create a new computation
@@ -527,7 +514,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
         curr = handleNextResult(expandComp)
       }
     }
-    logInfo(s"ExpandAfter ${curr}")
+   // logInfo(s"ExpandAfter ${curr}")
     curr
   }
 
@@ -568,7 +555,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
       withShouldBypass(false).
       withFilter(filter)
     val result = handleNextResult(filterComp)
-    logInfo (s"Filter before: ${this} after: ${result}")
+   // logInfo (s"Filter before: ${this} after: ${result}")
     result
   }
 
@@ -591,16 +578,16 @@ case class Fractoid [S <: Subgraph : ClassTag](
       //withExpandCompute((e,c) => c.bypass(e)).
       withShouldBypass(true)
 
-    logInfo (s"FilterCompBefore ${filterComp}")
+   // logInfo (s"FilterCompBefore ${filterComp}")
 
     filterComp = filterComp.
       withFilter(filterFunc).
       copy(mustSync = true)
 
-    logInfo (s"FilterCompAfter ${filterComp}")
+   // logInfo (s"FilterCompAfter ${filterComp}")
 
     val result = handleNextResult(filterComp)
-    logInfo (s"FilterAgg before: ${this} after: ${result}")
+   // logInfo (s"FilterAgg before: ${this} after: ${result}")
     result
   }
 
@@ -720,8 +707,8 @@ case class Fractoid [S <: Subgraph : ClassTag](
       processOpt = Option(process))
     val newConfig = config.withNewComputation (newComp)
     val result = this.copy (config = newConfig)
-    logInfo (s"WithProcess before: ${this} after: ${result}")
-    logInfo (s"WithProcessComp before: ${getComputationContainer[S]} after: ${newComp}")
+  //  logInfo (s"WithProcess before: ${this} after: ${result}")
+ //   logInfo (s"WithProcessComp before: ${getComputationContainer[S]} after: ${newComp}")
     result
   }
 
@@ -1102,12 +1089,12 @@ case class Fractoid [S <: Subgraph : ClassTag](
   private def withNextComputation (nextComputation: Computation[S],
       newConfig: SparkConfiguration[S] = config)
     : Fractoid[S] = {
-    logInfo (s"Appending ${nextComputation} to ${getComputationContainer[S]}")
+    //logInfo (s"Appending ${nextComputation} to ${getComputationContainer[S]}")
     val _newConfig = newConfig.withNewComputation (
       getComputationContainer[S].withComputationAppended (nextComputation)
     )
     val result = this.copy (config = _newConfig)
-    logInfo (s"Result after appending: ${result}")
+    //logInfo (s"Result after appending: ${result}")
     result
   }
 

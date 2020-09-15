@@ -70,22 +70,16 @@ object MaximalCliquesListing extends Logging {
 
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
-    val logLevel = "WARN"
+    val logLevel = "INFO"
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
     //conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_300"
-    //val graphPath = "/Users/danielmuraveyko/Desktop/test_0"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
-
-//    val kcore_list = Kcore.countKcore(sc, graphPath)
-//    val kcore = kcore_list.map(_._2).distinct
-//    val kcore_map = Kcore.countKcore(sc, graphPath).map(verexId => (verexId._1.toInt, verexId._2)).toMap
-    //logError(kcore_map.toString())
 
     val fc = new FractalContext(sc)
 
@@ -113,11 +107,10 @@ object MaximalCliquesListing extends Logging {
     addCliques(s)
 
     logWarning("extends: " + KClistEnumerator.count.toString)
-    //logWarning("1 extend: " + (KClistEnumerator.t * 1.0 / KClistEnumerator.count / 1000.0).toString + "s")
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
     for (r <- cliques) {
-      println(r.toArray.sorted.deep.mkString(", "))
+      println(r.size) //.toArray.sorted.deep.mkString(", "))
     }
 
     fc.stop()

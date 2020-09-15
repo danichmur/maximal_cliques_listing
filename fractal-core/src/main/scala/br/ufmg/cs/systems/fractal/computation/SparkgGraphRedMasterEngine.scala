@@ -266,7 +266,7 @@ class SparkGraphRedMasterEngine[S <: Subgraph](
 
     // print stats
     aggAccums.foreach { case (name, accum) =>
-      logInfo (s"Accumulator[${step}][${name}]: ${accum.value}")
+      //logInfo (s"Accumulator[${step}][${name}]: ${accum.value}")
       accum.reset()
     }
 

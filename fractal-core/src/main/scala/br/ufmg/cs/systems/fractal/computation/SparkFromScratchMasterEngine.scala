@@ -94,8 +94,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
     // save original container, i.e., without parents' computations
     val originalContainer = config.computationContainer[S]
-    logInfo (s"From scratch computation (${this})." +
-      s" Original computation: ${originalContainer}")
+//    logInfo (s"From scratch computation (${this})." +
+//      s" Original computation: ${originalContainer}")
 
     // find out how many computations are pipelined
     val numComputations = {
@@ -112,25 +112,25 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     // adding accumulators to each computation
     val egAccums = new Array[LongAccumulator](numComputations)
     val awAccums = new Array[LongAccumulator](numComputations)
-    val exAccums = new Array[LongAccumulator](numComputations)
-    var i = 0
-    while (i < numComputations) {
-      val egKey = s"${VALID_SUBGRAPHS}_${i}"
-      val awKey = s"${CANONICAL_SUBGRAPHS}_${i}"
-      val exKey = s"${NEIGHBORHOOD_LOOKUPS}_${i}"
-
-      egAccums(i) = sc.longAccumulator(egKey)
-      awAccums(i) = sc.longAccumulator(awKey)
-      exAccums(i) = sc.longAccumulator(exKey)
-
-      aggAccums.update (egKey, egAccums(i))
-      aggAccums.update (awKey, awAccums(i))
-      aggAccums.update (exKey, exAccums(i))
-
-      logInfo(s"Added accumulators (${egKey},${awKey},${exKey})")
-
-      i += 1
-    }
+//    val exAccums = new Array[LongAccumulator](numComputations)
+//    var i = 0
+//    while (i < numComputations) {
+//      val egKey = s"${VALID_SUBGRAPHS}_${i}"
+//      val awKey = s"${CANONICAL_SUBGRAPHS}_${i}"
+//      val exKey = s"${NEIGHBORHOOD_LOOKUPS}_${i}"
+//
+//      egAccums(i) = sc.longAccumulator(egKey)
+//      awAccums(i) = sc.longAccumulator(awKey)
+//      exAccums(i) = sc.longAccumulator(exKey)
+//
+//      aggAccums.update (egKey, egAccums(i))
+//      aggAccums.update (awKey, awAccums(i))
+//      aggAccums.update (exKey, exAccums(i))
+//
+//      //logInfo(s"Added accumulators (${egKey},${awKey},${exKey})")
+//
+//      i += 1
+//    }
 
     // we will contruct the pipeline in this var
     var cc = originalContainer.withComputationLabel("last_step_begins")
@@ -173,12 +173,12 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     // strategy adds a 'previous_enumeration' aggregation
     cc.initAggregations(this.config)
 
-    logInfo (s"From scratch computation (${this}). Final computation: ${cc}")
+    //logInfo (s"From scratch computation (${this}). Final computation: ${cc}")
 
-    logInfo (s"SparkConfiguration estimated size = " +
-      s"${SizeEstimator.estimate(config)} bytes")
-    logInfo (s"HadoopConfiguration estimated size = " +
-      s"${SizeEstimator.estimate(config.hadoopConf)} bytes")
+//    logInfo (s"SparkConfiguration estimated size = " +
+//      s"${SizeEstimator.estimate(config)} bytes")
+//    logInfo (s"HadoopConfiguration estimated size = " +
+//      s"${SizeEstimator.estimate(config.hadoopConf)} bytes")
 
     val initStart = System.currentTimeMillis
     val _configBc = configBc
@@ -306,9 +306,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     new ProcessComputeFunc[S] with Logging {
       val numComputations = _egAccums.length
 
-      val egAccums = _egAccums
-
-      val awAccums = _awAccums
+//      val egAccums = _egAccums
+//
+//      val awAccums = _awAccums
 
       var workStealingSys: WorkStealingSystem[S] = _
 
@@ -352,10 +352,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val execEngine = c.getExecutionEngine.
             asInstanceOf[SparkFromScratchEngine[S]]
 
-          egAccums(c.getDepth) = execEngine.
-            accums(s"${VALID_SUBGRAPHS}_${c.getDepth}")
-          awAccums(c.getDepth) = execEngine.
-            accums(s"${CANONICAL_SUBGRAPHS}_${c.getDepth}")
+//          egAccums(c.getDepth) = execEngine.
+//            accums(s"${VALID_SUBGRAPHS}_${c.getDepth}")
+//          awAccums(c.getDepth) = execEngine.
+//            accums(s"${CANONICAL_SUBGRAPHS}_${c.getDepth}")
 
           var currComp = c.nextComputation()
           while (currComp != null) {
@@ -363,10 +363,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             currComp.setExecutionEngine(execEngine)
             currComp.init(config)
             currComp.initAggregations(config)
-            egAccums(depth) = execEngine.accums(
-              s"${VALID_SUBGRAPHS}_${depth}")
-            awAccums(depth) = execEngine.accums(
-              s"${CANONICAL_SUBGRAPHS}_${depth}")
+//            egAccums(depth) = execEngine.accums(
+//              s"${VALID_SUBGRAPHS}_${depth}")
+//            awAccums(depth) = execEngine.accums(
+//              s"${CANONICAL_SUBGRAPHS}_${depth}")
             currComp = currComp.nextComputation
           }
 
@@ -468,8 +468,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           }
         }
 
-        awAccums(c.getDepth).add(addWords)
-        egAccums(c.getDepth).add(subgraphsGenerated)
+//        awAccums(c.getDepth).add(addWords)
+//        egAccums(c.getDepth).add(subgraphsGenerated)
 
         ret
       }
@@ -517,8 +517,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           }
         }
 
-        awAccums(c.getDepth).add(addWords)
-        egAccums(c.getDepth).add(subgraphsGenerated)
+//        awAccums(c.getDepth).add(addWords)
+//        egAccums(c.getDepth).add(subgraphsGenerated)
 
         subgraphsGenerated
       }

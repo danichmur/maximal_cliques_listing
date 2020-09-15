@@ -30,35 +30,35 @@ sealed trait ComputationContainer [E <: Subgraph] extends Computation[E]
     findCaller
   }
 
-  val containerId: Int = ComputationContainer.nextContainerId.getAndIncrement
+  @transient  val containerId: Int = ComputationContainer.nextContainerId.getAndIncrement
 
-  val primitiveOpt: Option[Primitive]
+  @transient  val primitiveOpt: Option[Primitive]
 
-  val computationLabelOpt: Option[String]
+  @transient  val computationLabelOpt: Option[String]
 
-  val patternOpt: Option[Pattern]
+  @transient  val patternOpt: Option[Pattern]
 
-  val processOpt: Option[(E,Computation[E]) => Unit]
+  @transient val processOpt: Option[(E,Computation[E]) => Unit]
 
-  val filterOpt: Option[(E,Computation[E]) => Boolean]
-  
-  val wordFilterOpt: Option[WordFilterFunc[E]]
+  @transient val filterOpt: Option[(E,Computation[E]) => Boolean]
 
-  val getPossibleExtensionsOpt: Option[(E,Computation[E]) => IntCollection]
+  @transient   val wordFilterOpt: Option[WordFilterFunc[E]]
 
-  val initOpt: Option[(Computation[E]) => Unit]
+  @transient val getPossibleExtensionsOpt: Option[(E,Computation[E]) => IntCollection]
 
-  val initAggregationsOpt: Option[(Computation[E]) => Unit]
+  @transient val initOpt: Option[(Computation[E]) => Unit]
 
-  val finishOpt: Option[(Computation[E]) => Unit]
+  @transient val initAggregationsOpt: Option[(Computation[E]) => Unit]
 
-  val expandComputeOpt: Option[(E,Computation[E]) => SubgraphEnumerator[E]]
+  @transient val finishOpt: Option[(Computation[E]) => Unit]
 
-  val shouldBypassOpt: Option[Boolean]
-  
-  val processComputeOpt: Option[(SubgraphEnumerator[E],Computation[E]) => Long]
+  @transient val expandComputeOpt: Option[(E,Computation[E]) => SubgraphEnumerator[E]]
 
-  val nextComputationOpt: Option[Computation[E]]
+  @transient val shouldBypassOpt: Option[Boolean]
+
+  @transient  val processComputeOpt: Option[(SubgraphEnumerator[E],Computation[E]) => Long]
+
+  @transient val nextComputationOpt: Option[Computation[E]]
  
   @transient lazy val lastComputation: ComputationContainer[E] = {
     nextComputationOpt match {
@@ -220,8 +220,8 @@ case class EComputationContainer [E <: EdgeInducedSubgraph] (
       None,
     nextComputationOpt: Option[Computation[E]] = None)
   extends EdgeInducedComputation[E] with ComputationContainer[E] {
-  
-  private val pconfigOpt: Option[Configuration[E]] =
+
+  @transient private val pconfigOpt: Option[Configuration[E]] =
     patternOpt.map(_.getConfig().asInstanceOf[Configuration[E]])
 
   @transient private lazy val _computationLabel: String =
@@ -579,8 +579,8 @@ case class VComputationContainer [E <: VertexInducedSubgraph] (
       None,
     nextComputationOpt: Option[Computation[E]] = None)
   extends VertexInducedComputation[E] with ComputationContainer[E] {
-  
-  private val pconfigOpt: Option[Configuration[E]] =
+
+  @transient private val pconfigOpt: Option[Configuration[E]] =
     patternOpt.map(_.getConfig().asInstanceOf[Configuration[E]])
 
   @transient private lazy val _primitive: Primitive =
@@ -932,8 +932,8 @@ case class VEComputationContainer [E <: PatternInducedSubgraph](
       None,
     nextComputationOpt: Option[Computation[E]] = None)
   extends PatternInducedComputation[E] with ComputationContainer[E] {
-  
-  private val pconfigOpt: Option[Configuration[E]] =
+
+  @transient private val pconfigOpt: Option[Configuration[E]] =
     patternOpt.map(_.getConfig().asInstanceOf[Configuration[E]])
 
   @transient private lazy val _primitive: Primitive =
@@ -1122,7 +1122,7 @@ case class VEComputationContainer [E <: PatternInducedSubgraph](
         lastComputation.processComputeOpt)
     : ComputationContainer[E] = {
 
-    val comps = new Stack[VEComputationContainer[E]]()
+    @transient val comps = new Stack[VEComputationContainer[E]]()
     var currOpt: Option[VEComputationContainer[E]] = Option(this)
     while (currOpt.isDefined) {
       comps.push(currOpt.get)

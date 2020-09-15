@@ -75,25 +75,10 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   @Override
   public SubgraphEnumerator<S> extend(int u) {
 
-//    if (print) {
-//          System.out.print("{ ");
-//    for (int i = 0; i < this.prefix.size(); ++i) {
-//      System.out.print(this.prefix.getUnchecked(i) + " ");
-//    }
-//    System.out.println("} " + u + " " + this.dag.keySet());
-//
-//      // long time = System.nanoTime();
-//
-//    }
-
     KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.nextComputation().getSubgraphEnumerator();
-
-
-    //System.out.println("EXTEND: " + u + " " + prefix.toString());
     nextEnumerator.clearDag();
 
     if (subgraph.getNumWords() == 0) {
-      //System.out.println(subgraph + " " + u);
       extendFromGraph(subgraph.getConfig().getMainGraph(), nextEnumerator.dag, u);
     } else {
       extendFromDag(subgraph.getConfig().getMainGraph(), dag, nextEnumerator.dag, u);
@@ -103,19 +88,6 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     subgraph.addWord(u);
     shouldRemoveLastWord = true;
 
-
-//    if (print) {
-//      System.out.print("{ ");
-//      IntArrayList vertices = subgraph.getVertices();
-//      for (int i = 0; i < vertices.size(); ++i) {
-//        System.out.print(vertices.getUnchecked(i) + " ");
-//      }
-//
-//      System.out.println("} " + " " + nextEnumerator.dag.keySet());
-//  //    System.out.println();
-//        // t += (System.nanoTime() - time);
-//  //    System.out.println("extend " + time / 1e9);
-//    }
     return nextEnumerator;
   }
 
@@ -276,8 +248,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   }
     // Function to assign colors to vertices of graph
     public static Map<Integer, Integer> colorGraph(MainGraph graph1) {
-
-
+      long time = System.currentTimeMillis();
       int N = graph1.getNumberVertices();
       List<Graph.Edge1> edges = new ArrayList<>();
       br.ufmg.cs.systems.fractal.graph.Edge[] edges1 = graph1.getEdges();
@@ -288,26 +259,15 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
                 graph1.getVertex(edges1[i].getDestinationId()).getVertexOriginalId()
         ));
       }
-
       Graph graph = new Graph(edges, N);
-
-      // stores color assigned to each vertex
       Map<Integer, Integer> result = new HashMap<>();
-
-      // assign color to vertex one by one
-      for (int u = 0; u < N; u++)
-      {
-        // set to store color of adjacent vertices of u
+      for (int u = 0; u < N; u++) {
         Set<Integer> assigned = new TreeSet<>();
-
-        // check colors of adjacent vertices of u and store in set
         for (int i : graph.adjList.get(u)) {
           if (result.containsKey(i)) {
             assigned.add(result.get(i));
           }
         }
-
-        // check for first free color
         int color = 1;
         for (Integer c: assigned) {
           if (color != c) {
@@ -315,14 +275,9 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
           }
           color++;
         }
-
-        // assigns vertex u the first available color
         result.put(u, color);
       }
-
-//      for (int v = 0; v < N; v++) {
-//        System.out.println(v + " -> "+ result.get(v));
-//      }
+      System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");
       return result;
   }
 }

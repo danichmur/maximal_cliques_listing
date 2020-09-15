@@ -290,12 +290,12 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
 
       if (LOG.isInfoEnabled()) {
          start = System.currentTimeMillis();
-         LOG.info("Initializing graph," +
-               " id=" + id +
-               " name=" + name +
-               " isEdgeLabelled=" + isEdgeLabelled +
-               " isMultiGraph=" + isMultiGraph +
-               " class=" + getClass());
+//         LOG.info("Initializing graph," +
+//               " id=" + id +
+//               " name=" + name +
+//               " isEdgeLabelled=" + isEdgeLabelled +
+//               " isMultiGraph=" + isMultiGraph +
+//               " class=" + getClass());
       }
 
       vertexIndexF = null;
@@ -312,13 +312,13 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
       this.isMultiGraph = isMultiGraph;
 
       if (LOG.isInfoEnabled()) {
-         LOG.info("Done initializing graph," +
-               " id=" + id +
-               " name=" + name +
-               " isEdgeLabelled=" + isEdgeLabelled +
-               " isMultiGraph=" + isMultiGraph +
-               " class=" + getClass() +
-               " elapsed=" + (System.currentTimeMillis() - start) + " ms");
+//         LOG.info("Done initializing graph," +
+//               " id=" + id +
+//               " name=" + name +
+//               " isEdgeLabelled=" + isEdgeLabelled +
+//               " isMultiGraph=" + isMultiGraph +
+//               " class=" + getClass() +
+//               " elapsed=" + (System.currentTimeMillis() - start) + " ms");
       }
    }
 
