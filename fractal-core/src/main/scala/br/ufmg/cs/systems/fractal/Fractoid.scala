@@ -339,7 +339,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
       i += 1
     }
     val elapsedTag = System.currentTimeMillis - startTag
-    logInfo (s"results.foreach took ${elapsedTag}")
+    logWarning(s"results.foreach took ${elapsedTag}")
 
     currResult
   }
@@ -419,15 +419,15 @@ case class Fractoid [S <: Subgraph : ClassTag](
   private def getComputationContainer [S <: Subgraph]
     : ComputationContainer[S] = {
     try {
-      var container: Computation[S] = config.computationContainer[S]
+      val container: Computation[S] = config.computationContainer[S]
       container.asInstanceOf[ComputationContainer[S]]
     } catch {
       case e: RuntimeException =>
-        logWarning (s"No computation container was set." +
+        logInfo (s"No computation container was set." +
           s" Please start with 'vfractoid' or" +
           s" 'efractoid' or 'pfractoid' from fractalGraph." +
           s" Exception message: ${e.getMessage}")
-        return null
+        null
     }
   }
 
@@ -1094,7 +1094,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
       getComputationContainer[S].withComputationAppended (nextComputation)
     )
     val result = this.copy (config = _newConfig)
-    //logInfo (s"Result after appending: ${result}")
+    logInfo(s"Result after appending: ${result}")
     result
   }
 

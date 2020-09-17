@@ -12,7 +12,6 @@ import com.koloboke.collect.map.IntObjCursor;
 import com.koloboke.collect.map.IntObjMap;
 import com.koloboke.collect.map.hash.HashIntObjMaps;
 import com.koloboke.function.IntObjConsumer;
-import com.twitter.cassovary.graph.node.SynchronizedDynamicNode;
 
 import java.util.*;
 
@@ -254,10 +253,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
       br.ufmg.cs.systems.fractal.graph.Edge[] edges1 = graph1.getEdges();
       int E = graph1.getNumberEdges();
       for (int i = 0; i< E; i++) {
-        edges.add(new Graph.Edge1(
-                graph1.getVertex(edges1[i].getSourceId()).getVertexOriginalId(),
-                graph1.getVertex(edges1[i].getDestinationId()).getVertexOriginalId()
-        ));
+        edges.add(new Graph.Edge1(edges1[i].getSourceId(), edges1[i].getDestinationId()));
       }
       Graph graph = new Graph(edges, N);
       Map<Integer, Integer> result = new HashMap<>();

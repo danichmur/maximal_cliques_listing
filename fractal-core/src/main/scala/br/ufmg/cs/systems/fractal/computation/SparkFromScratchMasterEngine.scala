@@ -435,9 +435,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           //TODO
           val dag = iter.getDag
           val cur = if (!dag.containsKey(u)) neighbours.cursor() else dag.get(u).cursor()
-          var arr : List[Int] = List(states(graph.getVertex(u).getVertexOriginalId))
+          var arr : List[Int] = List(states(u))
           while (cur.moveNext()) {
-            arr = states(graph.getVertex(cur.elem()).getVertexOriginalId) :: arr
+            arr = states(cur.elem()) :: arr
           }
 
           //k-clique contains k colors
@@ -448,7 +448,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val isSizeOk = !(maxPossibleSize == 0 && uniqColors < size || maxPossibleSize != 0 && maxPossibleSize < size)
 
 
-          if (isSizeOk && /*isVertexOk(u, graph) &&*/ uniqColors + prefixSize > size) {
+          if (isSizeOk && uniqColors + prefixSize > size) {
             if (prefixSize == 0) {
               Refrigerator.graphCounter += 1
             }
@@ -483,9 +483,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val wordIds = iter.getWordIds
         if (wordIds != null) {
           val printB = false
+          KClistEnumerator.count += 1
 
           if (printB && wordIds.size() > 0) {
-            KClistEnumerator.count += 1
 
             val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
 

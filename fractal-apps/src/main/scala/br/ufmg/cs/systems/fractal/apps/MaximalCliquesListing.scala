@@ -70,13 +70,13 @@ object MaximalCliquesListing extends Logging {
 
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
-    val logLevel = "INFO"
+    val logLevel = "WARN"
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
     //conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_300"
+    val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_260"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -90,6 +90,7 @@ object MaximalCliquesListing extends Logging {
     //TODO: if a graph can be colored with k colors, then the maximum clique in this graph must be smaller or equal to k
     //var explorationSteps = kcore.head
 
+
     var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
 
@@ -102,7 +103,7 @@ object MaximalCliquesListing extends Logging {
 
     val time = System.currentTimeMillis()
 
-    val s = 1199
+    val s = 1039
 
     addCliques(s)
 
@@ -110,7 +111,7 @@ object MaximalCliquesListing extends Logging {
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
     for (r <- cliques) {
-      println(r.size) //.toArray.sorted.deep.mkString(", "))
+      println(r.size) //toArray.sorted.deep.mkString(", "))
     }
 
     fc.stop()
