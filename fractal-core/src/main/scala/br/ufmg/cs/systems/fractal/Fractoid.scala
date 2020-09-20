@@ -290,6 +290,7 @@ case class Fractoid [S <: Subgraph : ClassTag](
       case i: Int => Some(i)
       case _ => None
     }
+    subgraphs
 
     subgraphs.collect.toList.map(x => x.words.toSet.flatMap((v : Any) => toInt(v)))
   }

@@ -13,20 +13,48 @@ import com.koloboke.collect.map.IntObjMap;
 import com.koloboke.collect.map.hash.HashIntObjMaps;
 import com.koloboke.function.IntObjConsumer;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.*;
 
-public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> {
+public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> implements Serializable {
 
   // TODO SynchronizedDynamicGraphV3 dag;
   // current clique DAG
-  private IntObjMap<IntArrayList> dag;
+  transient private IntObjMap<IntArrayList> dag;
   // used to clear the dag
-  private DagCleaner dagCleaner;
+  transient private DagCleaner dagCleaner;
   public static int count = 0;
   public static long t = 0;
 
-  public KClistEnumerator() {
+  private void writeObject(ObjectOutputStream out) throws IOException {
+    out.defaultWriteObject();
+
+    IntObjCursor<IntArrayList> cur = dag.cursor();
+    out.writeInt(dag.size());
+    while (cur.moveNext()) {
+      out.writeInt(cur.key());
+      out.writeObject(cur.value());
+    }
   }
+
+  private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+    in.defaultReadObject();
+    init(null);
+    int dagSize = in.readInt();
+    dag.ensureCapacity(dagSize);
+
+    while (dagSize != 0) {
+      dagSize--;
+      int key = in.readInt();
+      IntArrayList values = (IntArrayList) in.readObject();
+      dag.put(key, values);
+    }
+  }
+
+  public KClistEnumerator() { }
 
   @Override
   public void init(Configuration<S> config) {
@@ -43,8 +71,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     IntObjMap<IntArrayList> currentDag = HashIntObjMaps.newMutableMap();
     IntObjMap<IntArrayList> aux;
 
-    extendFromGraph(computation.getConfig().getMainGraph(),
-            dag, vertices.get(0));
+    extendFromGraph(computation.getConfig().getMainGraph(), dag, vertices.get(0));
 
     for (int i = 1; i < vertices.size(); ++i) {
       aux = currentDag;
@@ -96,6 +123,11 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     this.dag = dag;
   }
 
+  @Override
+  public void setForFrozen(IntObjMap<IntArrayList>  dag) {
+    this.dag = dag;
+  }
+
   /**
    * Extend this enumerator from a previous DAG
    * @param u vertex being added to the current subgraph
@@ -130,8 +162,6 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         continue;
       }
       Utils.sintersect(orderedVertices, orderedVertices2,
-              //TODO
-              //i + 1, orderedVertices.size(),
               0, orderedVertices.size(),
               0, orderedVertices2.size(), target);
       dag.put(v, target);
@@ -162,10 +192,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
     for (int i = 0; i < orderedVertices.size(); ++i) {
       int v = orderedVertices.getUnchecked(i);
-      //TODO no need to check this?
-      //if (v > u) {
-        dag.put(v, IntArrayListPool.instance().createObject());
-      //}
+      dag.put(v, IntArrayListPool.instance().createObject());
     }
 
     IntObjCursor<IntArrayList> cur = dag.cursor();
@@ -179,7 +206,6 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
       for (int j = 0; j < orderedVertices2.size(); ++j) {
         int w = orderedVertices2.getUnchecked(j);
-        //if (w > v && dag.containsKey(w)) {
         if (dag.containsKey(w)) {
           cur.value().add(w);
         }

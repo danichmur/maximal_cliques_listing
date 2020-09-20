@@ -76,7 +76,9 @@ object MaximalCliquesListing extends Logging {
     conf.set("fractal.log.level", logLevel)
     //conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_260"
+    val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_600"
+    //val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_17"
+    //val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_260"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -102,8 +104,10 @@ object MaximalCliquesListing extends Logging {
     }
 
     val time = System.currentTimeMillis()
-
-    val s = 1039
+    Refrigerator.start = time
+    val s = 2399
+   // val s = 67
+   //val s = 1039
 
     addCliques(s)
 

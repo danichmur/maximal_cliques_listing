@@ -657,11 +657,11 @@ object ActorMessageSystem extends Logging {
 }
 
 class WorkStealingSystem [S <: Subgraph] (
-    processCompute: (SubgraphEnumerator[S],Computation[S]) => Long,
+    processCompute: (SubgraphEnumerator[S],Computation[S]) => ComputationResults[S],
     gtagExecutorActor: ActorRef,
     remoteWorkQueue: ConcurrentLinkedQueue[StealWorkResponse],
-    callback: (SubgraphEnumerator[S], Long) => Unit =
-      (e: SubgraphEnumerator[S], ret: Long) => {}) extends Logging {
+    callback: (SubgraphEnumerator[S], ComputationResults[S]) => Unit =
+      (e: SubgraphEnumerator[S], ret: ComputationResults[S]) => {}) extends Logging {
 
   def workStealingCompute(c: Computation[S]): Unit = {
     implicit val executionContext = ActorMessageSystem.akkaExecutorContext

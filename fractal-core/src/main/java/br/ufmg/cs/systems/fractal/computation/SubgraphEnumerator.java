@@ -34,7 +34,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
    protected IntCursor cur;
 
    protected boolean shouldRemoveLastWord;
-   
+
    private AtomicBoolean active;
    private boolean frozen;
 
@@ -59,6 +59,16 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    public void setForFrozen(IntArrayList prefix, IntObjMap<IntArrayList>  dag) {
       subgraph.setVertices(prefix);
+      set(dag.keySet());
+
+      if(wordIds.size() == 1){
+         cur.moveNext();
+         currElem = cur.elem();
+      }
+
+   }
+
+   public void setForFrozen(IntObjMap<IntArrayList> dag) {
       set(dag.keySet());
 
       if(wordIds.size() == 1){

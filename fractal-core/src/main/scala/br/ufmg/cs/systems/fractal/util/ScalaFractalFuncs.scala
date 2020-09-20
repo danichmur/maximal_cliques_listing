@@ -23,14 +23,10 @@ trait SpecializedFunction3[
 }
 
 trait VertexProcessFunc
-    extends Function2[
-      VertexInducedSubgraph, Computation[VertexInducedSubgraph], Unit
-    ] with Serializable
+    extends ((VertexInducedSubgraph, Computation[VertexInducedSubgraph]) => Unit) with Serializable
 
 trait EdgeProcessFunc
-    extends Function2[
-      EdgeInducedSubgraph, Computation[EdgeInducedSubgraph], Unit
-    ]
+    extends ((EdgeInducedSubgraph, Computation[EdgeInducedSubgraph]) => Unit)
     with Serializable
 
 trait WordFilterFunc [S <: Subgraph] extends Serializable {
@@ -38,11 +34,11 @@ trait WordFilterFunc [S <: Subgraph] extends Serializable {
 }
 
 trait ProcessComputeFunc [S <: Subgraph]
-    extends Function2[SubgraphEnumerator[S], Computation[S], Long]
+    extends ((SubgraphEnumerator[S], Computation[S]) => ComputationResults[S])
     with Serializable
 
 trait MasterComputeFunc
-    extends Function1[MasterComputation, Unit]
+    extends ((MasterComputation) => Unit)
     with Serializable
 
 trait VertexFilterFunc [V] extends Predicate[Vertex[V]] with Serializable

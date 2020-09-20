@@ -27,6 +27,7 @@ object Refrigerator {
   var size : Int = 0
   var kcores : immutable.Map[Int, Int] = _
 
+  var start : Long = 0
 
   val isVertexOk: (Int, MainGraph[_, _]) => Boolean = (u : Int, graph : MainGraph[_, _]) => {
     val rigthU = graph.getVertex(u).getVertexOriginalId

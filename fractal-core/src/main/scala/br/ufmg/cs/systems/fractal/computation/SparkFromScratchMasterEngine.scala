@@ -23,7 +23,7 @@ import org.apache.spark.util.{LongAccumulator, SizeEstimator}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
-import scala.collection.mutable.Map
+import scala.collection.mutable.{ListBuffer, Map}
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
@@ -37,19 +37,19 @@ import scala.collection.mutable
  * SparkContext.
  */
 class SparkFromScratchMasterEngine[S <: Subgraph](
-    _config: SparkConfiguration[S],
-    _parentOpt: Option[SparkMasterEngine[S]]) extends SparkMasterEngine [S] {
+                                                   _config: SparkConfiguration[S],
+                                                   _parentOpt: Option[SparkMasterEngine[S]]) extends SparkMasterEngine[S] {
 
   import SparkFromScratchMasterEngine._
 
   def config: SparkConfiguration[S] = _config
 
   def parentOpt: Option[SparkMasterEngine[S]] = _parentOpt
-  
+
   var masterActorRef: ActorRef = _
 
   def this(_sc: SparkContext, config: SparkConfiguration[S]) {
-    this (config, None)
+    this(config, None)
     sc = _sc
     init()
   }
@@ -57,7 +57,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
   def this(_sc: SparkContext, config: SparkConfiguration[S],
            parent: SparkMasterEngine[S]) {
-    this (config, Option(parent))
+    this(config, Option(parent))
     sc = _sc
     init()
   }
@@ -89,48 +89,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
   lazy val next: Boolean = {
 
 
-    logInfo (s"${this} Computation starting from ${stepRDD}," +
+    logInfo(s"${this} Computation starting from ${stepRDD}," +
       s", StorageLevel=${stepRDD.getStorageLevel}")
 
     // save original container, i.e., without parents' computations
     val originalContainer = config.computationContainer[S]
-//    logInfo (s"From scratch computation (${this})." +
-//      s" Original computation: ${originalContainer}")
-
-    // find out how many computations are pipelined
-    val numComputations = {
-      var cc = originalContainer
-      var curr: SparkMasterEngine[S] = this
-      while (curr.parentOpt.isDefined) {
-        curr = curr.parentOpt.get
-        cc = curr.config.computationContainer[S].withComputationAppended(cc)
-      }
-      cc.setDepth(0)
-    }
-
-
-    // adding accumulators to each computation
-    val egAccums = new Array[LongAccumulator](numComputations)
-    val awAccums = new Array[LongAccumulator](numComputations)
-//    val exAccums = new Array[LongAccumulator](numComputations)
-//    var i = 0
-//    while (i < numComputations) {
-//      val egKey = s"${VALID_SUBGRAPHS}_${i}"
-//      val awKey = s"${CANONICAL_SUBGRAPHS}_${i}"
-//      val exKey = s"${NEIGHBORHOOD_LOOKUPS}_${i}"
-//
-//      egAccums(i) = sc.longAccumulator(egKey)
-//      awAccums(i) = sc.longAccumulator(awKey)
-//      exAccums(i) = sc.longAccumulator(exKey)
-//
-//      aggAccums.update (egKey, egAccums(i))
-//      aggAccums.update (awKey, awAccums(i))
-//      aggAccums.update (exKey, exAccums(i))
-//
-//      //logInfo(s"Added accumulators (${egKey},${awKey},${exKey})")
-//
-//      i += 1
-//    }
+    //    logInfo (s"From scratch computation (${this})." +
+    //      s" Original computation: ${originalContainer}")
 
     // we will contruct the pipeline in this var
     var cc = originalContainer.withComputationLabel("last_step_begins")
@@ -142,26 +107,72 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       cc = curr.config.computationContainer[S].withComputationAppended(cc)
     }
 
-
-
     // configure custom ProcessComputeFunc and aggregations
-    val processComputeFunc = getProcessComputeFunc(egAccums, awAccums)
+    val processComputeFunc = getProcessComputeFunc()
     cc = {
-      def withCustomFuncs(cc: ComputationContainer[S], depth: Int)
-        : ComputationContainer[S] = cc.nextComputationOpt match {
+      //TODO Exception in thread "main" java.lang.StackOverflowError
+      // at br.ufmg.cs.systems.fractal.computation.SparkFromScratchMasterEngine.withCustomFuncs$1
+      def withCustomFuncs(cc: ComputationContainer[S]): ComputationContainer[S] = cc.nextComputationOpt match {
         case Some(c) =>
-          val ncc = withCustomFuncs(c.asInstanceOf[ComputationContainer[S]],
-            depth + 1)
-          cc.shallowCopy(
-            processComputeOpt = Option(processComputeFunc),
-            nextComputationOpt = Option(ncc),
-            processOpt = None)
+          val ncc = withCustomFuncs(c.asInstanceOf[ComputationContainer[S]])
+          cc.shallowCopy(processComputeOpt = Option(processComputeFunc), nextComputationOpt = Option(ncc), processOpt = None)
 
         case None =>
           cc.shallowCopy(processComputeOpt = Option(processComputeFunc))
       }
+      //cc = withCustomFuncs(cc).withComputationLabel("first_computation")
 
-      cc = withCustomFuncs(cc, 0).withComputationLabel("first_computation")
+
+      var nextComputationOpt = cc.nextComputationOpt
+      var ccList: List[ComputationContainer[S]] = List.empty
+      while (nextComputationOpt.isDefined) {
+        nextComputationOpt = nextComputationOpt match {
+          case Some(c) => if (c != null) {
+            val cCast = c.asInstanceOf[ComputationContainer[S]]
+            ccList = cCast :: ccList
+            cCast.nextComputationOpt
+          } else {
+            None
+          }
+          case None => None
+        }
+      }
+
+      var i = 0
+      var prevComp: Option[ComputationContainer[S]] = None
+      var ccListNew: List[ComputationContainer[S]] = List.empty
+      while (i < ccList.size) {
+
+        val c: ComputationContainer[S] = ccList.get(i)
+        val computation = prevComp match {
+          case Some(c0) =>
+            c.shallowCopy(processComputeOpt = Option(processComputeFunc), nextComputationOpt = Option(c0), processOpt = None)
+          case None =>
+            c.shallowCopy(processComputeOpt = Option(processComputeFunc))
+        }
+        prevComp = Option(computation)
+
+        ccListNew = computation :: ccListNew
+        i += 1
+      }
+
+      cc = ccListNew.get(0).withComputationLabel("first_computation")
+
+
+      //      var nextComputationOpt = cc.nextComputationOpt
+      //
+      //      while (nextComputationOpt.isDefined) {
+      //        nextComputationOpt match {
+      //          case Some(c) =>
+      //            val ncc = c.asInstanceOf[ComputationContainer[S]]
+      //            cc = cc.shallowCopy(processComputeOpt = Option(processComputeFunc), nextComputationOpt = Option(ncc), processOpt = None)
+      //
+      //          case None =>
+      //            cc = cc.shallowCopy(processComputeOpt = Option(processComputeFunc))
+      //        }
+      //        nextComputationOpt = cc.nextComputationOpt
+      //      }
+
       cc.setDepth(0)
       cc
     }
@@ -175,10 +186,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
     //logInfo (s"From scratch computation (${this}). Final computation: ${cc}")
 
-//    logInfo (s"SparkConfiguration estimated size = " +
-//      s"${SizeEstimator.estimate(config)} bytes")
-//    logInfo (s"HadoopConfiguration estimated size = " +
-//      s"${SizeEstimator.estimate(config.hadoopConf)} bytes")
+    //    logInfo (s"SparkConfiguration estimated size = " +
+    //      s"${SizeEstimator.estimate(config)} bytes")
+    //    logInfo (s"HadoopConfiguration estimated size = " +
+    //      s"${SizeEstimator.estimate(config.hadoopConf)} bytes")
 
     val initStart = System.currentTimeMillis
     val _configBc = configBc
@@ -190,7 +201,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
     val initElapsed = System.currentTimeMillis - initStart
 
-    logInfo (s"Initialization took ${initElapsed} ms")
+    logInfo(s"Initialization took ${initElapsed} ms")
 
     if (mainGraphWasRead) {
       val superstepStart = System.currentTimeMillis
@@ -273,17 +284,17 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
    * TODO
    */
   def getExecutionEngines[E <: Subgraph](
-      superstepRDD: RDD[Unit],
-      superstep: Int,
-      configBc: Broadcast[SparkConfiguration[E]],
-      aggAccums: Map[String,LongAccumulator],
-      previousAggregationsBc: Broadcast[_]): RDD[SparkEngine[E]] = {
+                                          superstepRDD: RDD[Unit],
+                                          superstep: Int,
+                                          configBc: Broadcast[SparkConfiguration[E]],
+                                          aggAccums: Map[String, LongAccumulator],
+                                          previousAggregationsBc: Broadcast[_]): RDD[SparkEngine[E]] = {
 
     val execEngines = superstepRDD.mapPartitionsWithIndex { (idx, cacheIter) =>
 
       configBc.value.initializeWithTag(isMaster = false)
 
-      val execEngine = new SparkFromScratchEngine [E] (
+      val execEngine = new SparkFromScratchEngine[E](
         partitionId = idx,
         step = superstep,
         accums = aggAccums,
@@ -292,7 +303,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       )
 
       execEngine.init()
-      execEngine.compute ()
+      execEngine.compute()
       execEngine.finalize()
 
       Iterator[SparkEngine[E]](execEngine)
@@ -301,21 +312,14 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     execEngines
   }
 
-  def getProcessComputeFunc(_egAccums: Array[LongAccumulator],
-      _awAccums: Array[LongAccumulator]): ProcessComputeFunc[S] = {
+  def getProcessComputeFunc(): ProcessComputeFunc[S] = {
     new ProcessComputeFunc[S] with Logging {
-      val numComputations = _egAccums.length
-
-//      val egAccums = _egAccums
-//
-//      val awAccums = _awAccums
 
       var workStealingSys: WorkStealingSystem[S] = _
 
       var lastStepConsumer: LastStepConsumer[S] = _
 
-      def apply(iter: SubgraphEnumerator[S], c: Computation[S]): Long = {
-        //logError("APPLY")
+      def apply(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
         val config = c.getConfig
 
         val t = iter.prefix.size() + iter.getDag.size()
@@ -328,45 +332,36 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             //logInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
             //Refrigerator.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
           }
-          return 0
+          return new ComputationResults[S]
         }
-//        if (Refrigerator.freeze && c.getDepth == 0) {
-//          val pIter = Refrigerator.current.freezePrefix.iterator
-//          val dIter = Refrigerator.current.freezeDag.iterator
-//          val prefix = new IntArrayList
-//          val dag : IntObjMap[IntArrayList] = HashIntObjMaps.newMutableMap.asInstanceOf[IntObjMap[IntArrayList]]
-//
-//          while (pIter.hasNext) {
-//            prefix.add(pIter.next.asInstanceOf[Integer])
-//          }
-//
-//          while (dIter.hasNext) {
-//            val node = dIter.next
-//            dag.put(node.id, SynchronizedNodeBuilder.seq2ArrayList(node.outboundNodes))
-//          }
-//          iter.setForFrozen(prefix, dag)
-//        }
+        //        if (Refrigerator.freeze && c.getDepth == 0) {
+        //          val pIter = Refrigerator.current.freezePrefix.iterator
+        //          val dIter = Refrigerator.current.freezeDag.iterator
+        //          val prefix = new IntArrayList
+        //          val dag : IntObjMap[IntArrayList] = HashIntObjMaps.newMutableMap.asInstanceOf[IntObjMap[IntArrayList]]
+        //
+        //          while (pIter.hasNext) {
+        //            prefix.add(pIter.next.asInstanceOf[Integer])
+        //          }
+        //
+        //          while (dIter.hasNext) {
+        //            val node = dIter.next
+        //            dag.put(node.id, SynchronizedNodeBuilder.seq2ArrayList(node.outboundNodes))
+        //          }
+        //          iter.setForFrozen(prefix, dag)
+        //        }
 
         if (c.getDepth == 0) {
 
           val execEngine = c.getExecutionEngine.
             asInstanceOf[SparkFromScratchEngine[S]]
 
-//          egAccums(c.getDepth) = execEngine.
-//            accums(s"${VALID_SUBGRAPHS}_${c.getDepth}")
-//          awAccums(c.getDepth) = execEngine.
-//            accums(s"${CANONICAL_SUBGRAPHS}_${c.getDepth}")
-
           var currComp = c.nextComputation()
+
           while (currComp != null) {
-            val depth = currComp.getDepth
             currComp.setExecutionEngine(execEngine)
             currComp.init(config)
             currComp.initAggregations(config)
-//            egAccums(depth) = execEngine.accums(
-//              s"${VALID_SUBGRAPHS}_${depth}")
-//            awAccums(depth) = execEngine.accums(
-//              s"${CANONICAL_SUBGRAPHS}_${depth}")
             currComp = currComp.nextComputation
           }
 
@@ -374,56 +369,98 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           var start = System.currentTimeMillis
 
-          val ret = processCompute(iter, c, Refrigerator.size, Refrigerator.isVertexOk)
-          var elapsed = System.currentTimeMillis - start
+          var ret = processCompute(iter, c)
 
-          logInfo (s"WorkStealingMode internal=${config.internalWsEnabled()}" +
-            s" external=${config.externalWsEnabled()}")
+          while (!ret.isEmpty) {
+            var nextComputation = c.nextComputation()
+            val newRet = new ComputationResults[S]
+            val start0 = System.currentTimeMillis
+            for (result <- ret.getResults) {
+              val subgraph = result.subgraph
+              val enumerator: SubgraphEnumerator[S] = result.enumerator
+              nextComputation.getSubgraphEnumerator.set(nextComputation, subgraph)
+              nextComputation.getSubgraphEnumerator.setForFrozen(enumerator.getDag)
+              subgraph.nextExtensionLevel()
 
-          logInfo (s"InitialComputation step=${c.getStep}" +
-            s" partitionId=${c.getPartitionId} took ${elapsed} ms")
+              newRet.addAll(nextComputation.compute(subgraph))
+              subgraph.previousExtensionLevel()
+            }
+            val stepTime = System.currentTimeMillis - start0
 
-          // setup work-stealing system
-          start = System.currentTimeMillis
-          if (config.wsEnabled()) {
-            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]) = processCompute(iter, c, Refrigerator.size, Refrigerator.isVertexOk)
-            val gtagExecutorActor = execEngine.slaveActorRef
-            workStealingSys = new WorkStealingSystem[S](
-              processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
-
-            workStealingSys.workStealingCompute(c)
+            nextComputation = nextComputation.nextComputation
+            ret = newRet
+            if (ret.getStep == Refrigerator.size + 1) {
+              for (result <- ret.getResults) {
+                var i = 0
+                val s = new StringBuilder("")
+                while (i < result.subgraph.getVertices.size) {
+                  s ++= result.subgraph.getVertices.getUnchecked(i).toString + " "
+                  i += 1
+                }
+                logWarning("CLIQUE " + s.toString)
+              }
+              //TODO
+              logWarning("extends: " + KClistEnumerator.count.toString)
+              logWarning(s"Time: ${(System.currentTimeMillis() - Refrigerator.start) / 1000.0}s\n")
+              ret = new ComputationResults[S]
+            } else {
+              logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${(stepTime) / 1000.0}s")
+            }
           }
-          elapsed = System.currentTimeMillis - start
 
-          logInfo (s"WorkStealingComputation step=${c.getStep}" +
+          var elapsed = System.currentTimeMillis - start
+          logInfo(s"WorkStealingMode internal=${config.internalWsEnabled()}" +
+            s" external=${config.externalWsEnabled()}")
+          logInfo(s"InitialComputation step=${c.getStep}" +
             s" partitionId=${c.getPartitionId} took ${elapsed} ms")
+
+          if (config.wsEnabled()) {
+            // setup work-stealing system
+            start = System.currentTimeMillis
+
+            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+              processCompute(iter, c)
+            }
+
+            val gtagExecutorActor = execEngine.slaveActorRef
+            workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
+            workStealingSys.workStealingCompute(c)
+            elapsed = System.currentTimeMillis - start
+
+            logInfo(s"WorkStealingComputation step=${c.getStep}" +
+              s" partitionId=${c.getPartitionId} took ${elapsed} ms")
+          }
+
 
           ret
-        } else processCompute(iter, c, Refrigerator.size, Refrigerator.isVertexOk)
+        } else {
+          processCompute(iter, c)
+        }
       }
 
       //TODO
-      var colors : Option[Map[Integer, Integer]] = None
+      var colors: Option[Map[Integer, Integer]] = None
+
+      @scala.annotation.tailrec
       private def getColors(c: Computation[S]): Map[Integer, Integer] = {
         colors match {
           case Some(c) => c
           case None =>
-            val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
+            val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
             colors = Some(KClistEnumerator.colorGraph(graph))
             getColors(c)
         }
       }
 
+
       private def hasNextComputation(iter: SubgraphEnumerator[S],
-          c: Computation[S], nextComp: Computation[S], size: Int, isVertexOk: (Int, MainGraph[_, _]) => Boolean): Long = {
+                                     c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
         var currentSubgraph: S = null.asInstanceOf[S]
 
-        var addWords = 0L
-        var subgraphsGenerated = 0L
-        var ret = 0L
-        val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
-
+        val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
+        val size = Refrigerator.size
         val states = getColors(c)
+        val result = new ComputationResults[S]
 
         while (iter.hasNext) {
           val u = iter.nextElem()
@@ -432,16 +469,16 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
           val neighbours = graph.getVertexNeighbours(u)
 
-          //TODO
           val dag = iter.getDag
           val cur = if (!dag.containsKey(u)) neighbours.cursor() else dag.get(u).cursor()
-          var arr : List[Int] = List(states(u))
+
+          var neigh_colors: Set[Int] = Set(states(u))
           while (cur.moveNext()) {
-            arr = states(cur.elem()) :: arr
+            neigh_colors += states(cur.elem())
           }
 
           //k-clique contains k colors
-          val uniqColors = arr.distinct.size
+          val uniqColors = neigh_colors.size
 
           // size = cliqueSize - 1
           // maxPossibleSize = 0 is the first computation
@@ -453,29 +490,29 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               Refrigerator.graphCounter += 1
             }
 
-            iter.extend(u)
 
-            currentSubgraph = iter.getSubgraph
+            val next_iter = iter.extend(u)
+            val bytes = SparkConfiguration.serialize(next_iter)
+            val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
 
-            addWords += 1
-            if (c.filter(currentSubgraph)) {
-              subgraphsGenerated += 1
-              currentSubgraph.nextExtensionLevel()
-              ret += nextComp.compute(currentSubgraph)
-              currentSubgraph.previousExtensionLevel()
-            }
+            val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
+            val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
 
+            result.add(new_iter, new_subgraph)
+            //            currentSubgraph = iter.getSubgraph
+            //
+            //            if (c.filter(currentSubgraph)) {
+            //              currentSubgraph.nextExtensionLevel()
+            //              nextComp.compute(currentSubgraph)
+            //              currentSubgraph.previousExtensionLevel()
+            //            }
           }
         }
-
-//        awAccums(c.getDepth).add(addWords)
-//        egAccums(c.getDepth).add(subgraphsGenerated)
-
-        ret
+        result
       }
 
       private def lastComputation(iter: SubgraphEnumerator[S],
-          c: Computation[S]): Long = {
+                                  c: Computation[S]): ComputationResults[S] = {
 
         var addWords = 0L
         var subgraphsGenerated = 0L
@@ -487,7 +524,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           if (printB && wordIds.size() > 0) {
 
-            val graph = c.getConfig.getMainGraph[MainGraph[_,_]]()
+            val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
 
             val cur = wordIds.cursor()
             print("add ")
@@ -504,35 +541,31 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             }
             System.out.println(")")
           }
+
           lastStepConsumer.set(iter.getSubgraph, c)
           wordIds.forEach(lastStepConsumer)
           addWords += lastStepConsumer.addWords
           subgraphsGenerated += lastStepConsumer.subgraphsGenerated
+
         } else {
+
           val subgraph = iter.next()
           addWords += 1
           if (c.filter(subgraph)) {
             subgraphsGenerated += 1
             c.process(subgraph)
           }
+
         }
 
-//        awAccums(c.getDepth).add(addWords)
-//        egAccums(c.getDepth).add(subgraphsGenerated)
-
-        subgraphsGenerated
+        new ComputationResults[S]
       }
 
-      private def processCompute(
-        iter: SubgraphEnumerator[S],
-        c: Computation[S],
-        size: Int,
-        isVertexOk: (Int, MainGraph[_, _]) => Boolean
-      ): Long = {
+      private def processCompute(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
         val nextComp = c.nextComputation()
 
         if (nextComp != null) {
-          hasNextComputation(iter, c, nextComp, size, isVertexOk)
+          hasNextComputation(iter, c, nextComp)
         } else {
           lastComputation(iter, c)
         }
