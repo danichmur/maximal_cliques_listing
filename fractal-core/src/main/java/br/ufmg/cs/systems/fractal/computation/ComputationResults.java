@@ -35,15 +35,4 @@ public class ComputationResults<S extends Subgraph> {
     public void addAll(ComputationResults<S> newResults) {
         results.addAll(newResults.results);
     }
-
-    public class ComputationResult<E extends Subgraph> {
-        SubgraphEnumerator<E> enumerator;
-        E subgraph;
-
-        ComputationResult(SubgraphEnumerator<E> enumerator, E subgraph) {
-            this.enumerator = enumerator;
-            this.subgraph = subgraph;
-        }
-
-    }
 }

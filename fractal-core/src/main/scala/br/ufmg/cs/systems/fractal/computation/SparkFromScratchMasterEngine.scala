@@ -110,16 +110,15 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     // configure custom ProcessComputeFunc and aggregations
     val processComputeFunc = getProcessComputeFunc()
     cc = {
-      //TODO Exception in thread "main" java.lang.StackOverflowError
-      // at br.ufmg.cs.systems.fractal.computation.SparkFromScratchMasterEngine.withCustomFuncs$1
-      def withCustomFuncs(cc: ComputationContainer[S]): ComputationContainer[S] = cc.nextComputationOpt match {
-        case Some(c) =>
-          val ncc = withCustomFuncs(c.asInstanceOf[ComputationContainer[S]])
-          cc.shallowCopy(processComputeOpt = Option(processComputeFunc), nextComputationOpt = Option(ncc), processOpt = None)
-
-        case None =>
-          cc.shallowCopy(processComputeOpt = Option(processComputeFunc))
-      }
+      //Exception in thread "main" java.lang.StackOverflowError
+//      def withCustomFuncs(cc: ComputationContainer[S]): ComputationContainer[S] = cc.nextComputationOpt match {
+//        case Some(c) =>
+//          val ncc = withCustomFuncs(c.asInstanceOf[ComputationContainer[S]])
+//          cc.shallowCopy(processComputeOpt = Option(processComputeFunc), nextComputationOpt = Option(ncc), processOpt = None)
+//
+//        case None =>
+//          cc.shallowCopy(processComputeOpt = Option(processComputeFunc))
+//      }
       //cc = withCustomFuncs(cc).withComputationLabel("first_computation")
 
 
@@ -155,24 +154,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         ccListNew = computation :: ccListNew
         i += 1
       }
-
+      //ccList = null
       cc = ccListNew.get(0).withComputationLabel("first_computation")
-
-
-      //      var nextComputationOpt = cc.nextComputationOpt
-      //
-      //      while (nextComputationOpt.isDefined) {
-      //        nextComputationOpt match {
-      //          case Some(c) =>
-      //            val ncc = c.asInstanceOf[ComputationContainer[S]]
-      //            cc = cc.shallowCopy(processComputeOpt = Option(processComputeFunc), nextComputationOpt = Option(ncc), processOpt = None)
-      //
-      //          case None =>
-      //            cc = cc.shallowCopy(processComputeOpt = Option(processComputeFunc))
-      //        }
-      //        nextComputationOpt = cc.nextComputationOpt
-      //      }
-
+      //ccListNew = null
       cc.setDepth(0)
       cc
     }
@@ -183,13 +167,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     // NOTE: We need this extra initAggregations because this communication
     // strategy adds a 'previous_enumeration' aggregation
     cc.initAggregations(this.config)
-
-    //logInfo (s"From scratch computation (${this}). Final computation: ${cc}")
-
-    //    logInfo (s"SparkConfiguration estimated size = " +
-    //      s"${SizeEstimator.estimate(config)} bytes")
-    //    logInfo (s"HadoopConfiguration estimated size = " +
-    //      s"${SizeEstimator.estimate(config.hadoopConf)} bytes")
 
     val initStart = System.currentTimeMillis
     val _configBc = configBc
@@ -284,11 +261,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
    * TODO
    */
   def getExecutionEngines[E <: Subgraph](
-                                          superstepRDD: RDD[Unit],
-                                          superstep: Int,
-                                          configBc: Broadcast[SparkConfiguration[E]],
-                                          aggAccums: Map[String, LongAccumulator],
-                                          previousAggregationsBc: Broadcast[_]): RDD[SparkEngine[E]] = {
+     superstepRDD: RDD[Unit],
+     superstep: Int,
+     configBc: Broadcast[SparkConfiguration[E]],
+     aggAccums: Map[String, LongAccumulator],
+     previousAggregationsBc: Broadcast[_]): RDD[SparkEngine[E]] = {
 
     val execEngines = superstepRDD.mapPartitionsWithIndex { (idx, cacheIter) =>
 
@@ -375,21 +352,24 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             var nextComputation = c.nextComputation()
             val newRet = new ComputationResults[S]
             val start0 = System.currentTimeMillis
+
             for (result <- ret.getResults) {
               val subgraph = result.subgraph
-              val enumerator: SubgraphEnumerator[S] = result.enumerator
-              nextComputation.getSubgraphEnumerator.set(nextComputation, subgraph)
-              nextComputation.getSubgraphEnumerator.setForFrozen(enumerator.getDag)
-              subgraph.nextExtensionLevel()
 
+              nextComputation.getSubgraphEnumerator.set(nextComputation, subgraph)
+              nextComputation.getSubgraphEnumerator.setForFrozen(result.enumerator.getDag)
+
+              subgraph.nextExtensionLevel()
               newRet.addAll(nextComputation.compute(subgraph))
               subgraph.previousExtensionLevel()
             }
-            val stepTime = System.currentTimeMillis - start0
 
             nextComputation = nextComputation.nextComputation
             ret = newRet
+
             if (ret.getStep == Refrigerator.size + 1) {
+              logWarning("extends: " + KClistEnumerator.count.toString)
+              logWarning(s"Time: ${(System.currentTimeMillis() - Refrigerator.start) / 1000.0}s\n")
               for (result <- ret.getResults) {
                 var i = 0
                 val s = new StringBuilder("")
@@ -400,13 +380,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 logWarning("CLIQUE " + s.toString)
               }
               //TODO
-              logWarning("extends: " + KClistEnumerator.count.toString)
-              logWarning(s"Time: ${(System.currentTimeMillis() - Refrigerator.start) / 1000.0}s\n")
               ret = new ComputationResults[S]
             } else {
-              logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${(stepTime) / 1000.0}s")
+              val stepTime = System.currentTimeMillis - start0
+              //logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${(stepTime) / 1000.0}s")
             }
           }
+
 
           var elapsed = System.currentTimeMillis - start
           logInfo(s"WorkStealingMode internal=${config.internalWsEnabled()}" +
@@ -431,7 +411,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               s" partitionId=${c.getPartitionId} took ${elapsed} ms")
           }
 
-
           ret
         } else {
           processCompute(iter, c)
@@ -455,7 +434,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
       private def hasNextComputation(iter: SubgraphEnumerator[S],
                                      c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
-        var currentSubgraph: S = null.asInstanceOf[S]
+        //var currentSubgraph: S = null.asInstanceOf[S]
 
         val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
         val size = Refrigerator.size
@@ -490,7 +469,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               Refrigerator.graphCounter += 1
             }
 
-
             val next_iter = iter.extend(u)
             val bytes = SparkConfiguration.serialize(next_iter)
             val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
@@ -499,13 +477,14 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
 
             result.add(new_iter, new_subgraph)
-            //            currentSubgraph = iter.getSubgraph
+
+            //currentSubgraph = iter.getSubgraph
             //
-            //            if (c.filter(currentSubgraph)) {
-            //              currentSubgraph.nextExtensionLevel()
-            //              nextComp.compute(currentSubgraph)
-            //              currentSubgraph.previousExtensionLevel()
-            //            }
+            //if (c.filter(currentSubgraph)) {
+            //  currentSubgraph.nextExtensionLevel()
+            //  nextComp.compute(currentSubgraph)
+            //  currentSubgraph.previousExtensionLevel()
+            //}
           }
         }
         result
