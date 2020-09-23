@@ -154,8 +154,7 @@ case class Fractoid[S <: Subgraph : ClassTag](
       //  s"${thisWithOutput.config.getOutputPath}-${step}")
 
       // logInfo (s"Output to get Subgraphs: ${this} ${thisWithOutput}")
-      val t = thisWithOutput.masterEngine.getSubgraphs
-      t
+      thisWithOutput.masterEngine.getSubgraphs
     } else {
       subgraphsOpt match {
         case None if config.isOutputActive =>
@@ -177,8 +176,7 @@ case class Fractoid[S <: Subgraph : ClassTag](
 
   def internalSubgraphs: RDD[S] = internalSubgraphs((_, _) => true)
 
-  def internalSubgraphs(
-                         shouldOutput: (S, Computation[S]) => Boolean): RDD[S] = {
+  def internalSubgraphs(shouldOutput: (S, Computation[S]) => Boolean): RDD[S] = {
     if (config.confs.contains(SparkConfiguration.COMPUTATION_CONTAINER)) {
       val thisWithOutput = withOutput(shouldOutput).set(
         "output_path",
@@ -291,8 +289,6 @@ case class Fractoid[S <: Subgraph : ClassTag](
       case i: Int => Some(i)
       case _ => None
     }
-
-    subgraphs
 
     subgraphs.collect.toList.map(x => x.words.toSet.flatMap((v: Any) => toInt(v)))
   }

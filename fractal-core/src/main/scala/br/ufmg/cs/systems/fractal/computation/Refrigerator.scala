@@ -5,6 +5,8 @@ import java.util.HashSet
 
 import br.ufmg.cs.systems.fractal.gmlib.clique.FrozenDataHolderOld
 import br.ufmg.cs.systems.fractal.graph.MainGraph
+import br.ufmg.cs.systems.fractal.subgraph.Subgraph
+import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
 import br.ufmg.cs.systems.fractal.util.{SynchronizedDynamicGraphV2, SynchronizedNodeBuilder}
 import com.twitter.cassovary.graph.node.SynchronizedDynamicNode
 import net.openhft.chronicle.map.ChronicleMap
@@ -23,6 +25,7 @@ object Refrigerator {
   var counter : Int = 0
   var graphCounter : Int = 0
 
+  var result : List[IntArrayList] = List.empty
 
   var size : Int = 0
   var kcores : immutable.Map[Int, Int] = _

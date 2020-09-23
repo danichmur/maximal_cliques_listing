@@ -107,7 +107,7 @@ object MaximalCliquesListing extends Logging {
     val time = System.currentTimeMillis()
     Refrigerator.start = time
    //val s = 2399
-   val s = 59
+    val s = 59
     //val s = 1039
     //val s = 1199
 
@@ -116,7 +116,7 @@ object MaximalCliquesListing extends Logging {
     logWarning("extends: " + KClistEnumerator.count.toString)
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
-    for (r <- cliques) {
+    for (r <- Refrigerator.result) {
       println(r.size) //toArray.sorted.deep.mkString(", "))
     }
 
