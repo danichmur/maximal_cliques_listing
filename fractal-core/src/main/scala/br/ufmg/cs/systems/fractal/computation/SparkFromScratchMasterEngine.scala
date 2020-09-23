@@ -6,7 +6,7 @@ import java.util.function.IntConsumer
 
 import akka.actor._
 import br.ufmg.cs.systems.fractal.conf.SparkConfiguration
-import br.ufmg.cs.systems.fractal.gmlib.clique.{FrozenDataHolderOld, GlobalFreezeHolderOld, KClistEnumerator}
+import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator
 import br.ufmg.cs.systems.fractal.graph.MainGraph
 import br.ufmg.cs.systems.fractal.subgraph._
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
@@ -194,7 +194,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         aggAccums = _aggAccums,
         previousAggregationsBc = previousAggregationsBc)
 
-      execEngines.persist(MEMORY_ONLY_SER)
+      execEngines.persist(MEMORY_AND_DISK_SER)
       execEngines.foreachPartition(_ => {})
 
       val enumerationElapsed = System.currentTimeMillis - enumerationStart
@@ -362,6 +362,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               subgraph.nextExtensionLevel()
               newRet.addAll(nextComputation.compute(subgraph))
               subgraph.previousExtensionLevel()
+
             }
 
             nextComputation = nextComputation.nextComputation
@@ -383,7 +384,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               ret = new ComputationResults[S]
             } else {
               val stepTime = System.currentTimeMillis - start0
-              //logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${(stepTime) / 1000.0}s")
+              logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${(stepTime) / 1000.0}s;")
             }
           }
 
@@ -440,6 +441,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val size = Refrigerator.size
         val states = getColors(c)
         val result = new ComputationResults[S]
+        var len = 0
+        var iter_len = 0
 
         while (iter.hasNext) {
           val u = iter.nextElem()
@@ -468,13 +471,20 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             if (prefixSize == 0) {
               Refrigerator.graphCounter += 1
             }
-
+            val time0 = System.currentTimeMillis
             val next_iter = iter.extend(u)
-            val bytes = SparkConfiguration.serialize(next_iter)
-            val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
+            val extend_time = System.currentTimeMillis - time0
 
+            val ser = System.currentTimeMillis
+            val bytes = SparkConfiguration.serialize(next_iter)
+            iter_len += bytes.length
+            val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
             val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
+            len += subgrap_bytes.length
             val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
+            val ser_time = System.currentTimeMillis - time0
+
+            logWarning(s"extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s")
 
             result.add(new_iter, new_subgraph)
 
@@ -487,6 +497,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             //}
           }
         }
+        logWarning("subgrap_bytes: " + len)
+        logWarning("iter bytes: " + iter_len)
         result
       }
 

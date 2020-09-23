@@ -29,8 +29,10 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   public static int count = 0;
   public static long t = 0;
 
+
+  //This guys serialize only dags
   private void writeObject(ObjectOutputStream out) throws IOException {
-    out.defaultWriteObject();
+    //out.defaultWriteObject();
 
     IntObjCursor<IntArrayList> cur = dag.cursor();
     out.writeInt(dag.size());
@@ -41,7 +43,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
   }
 
   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
-    in.defaultReadObject();
+   //in.defaultReadObject();
+
     init(null);
     int dagSize = in.readInt();
     dag.ensureCapacity(dagSize);
@@ -136,16 +139,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
                             IntObjMap<IntArrayList> dag, int u) {
 
     count++;
-    if (print) {
-      System.out.print("add " + graph.getVertex(u).getVertexOriginalId() + " to Set(");
-      for (int i = 0; i < prefix.size(); i++) {
-        if (i != 0) {
-          System.out.print(", ");
-        }
-        System.out.print(graph.getVertex(prefix.getUnchecked(i)).getVertexOriginalId());
-      }
-      System.out.println(")");
-    }
+
     IntArrayList orderedVertices = currentDag.get(u);
 
     if (orderedVertices == null) {
