@@ -660,7 +660,7 @@ object SparkConfiguration extends Logging {
     deserialize(bais)
   }
 
-  def deserialize[T](is: InputStream): T = {
+  def deserialize[T](is: InputStream):  T = {
     val ois = new ObjectInputStream(is)
     ois.readObject().asInstanceOf[T]
   }
