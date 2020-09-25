@@ -58,6 +58,7 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
          }
 
          reader.close();
+         buildSortedNeighborhood();
       } catch (IOException e) {
          throw new RuntimeException(e);
       }
