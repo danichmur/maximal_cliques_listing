@@ -647,7 +647,7 @@ object SparkConfiguration extends Logging {
   val OUTPUT_SEQUENCE_FILE = "sequence_file"
 
   // auxiliary functions
-  def serialize[T](obj: T): Array[Byte] = {
+  def serialize[T](obj: T): Array[Byte]  = {
     val baos = new ByteArrayOutputStream
     val oos = new ObjectOutputStream(baos)
     oos.writeObject(obj)
