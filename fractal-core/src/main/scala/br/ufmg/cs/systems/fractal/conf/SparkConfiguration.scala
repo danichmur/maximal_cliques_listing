@@ -655,12 +655,12 @@ object SparkConfiguration extends Logging {
     baos.toByteArray
   }
 
-  def deserialize[T](bytes: Array[Byte]): T = {
+  def deserialize[T](bytes: Array[Byte]):  T = {
     val bais = new ByteArrayInputStream(bytes)
     deserialize(bais)
   }
 
-  def deserialize[T](is: InputStream): T = {
+  def deserialize[T](is: InputStream):  T = {
     val ois = new ObjectInputStream(is)
     ois.readObject().asInstanceOf[T]
   }
