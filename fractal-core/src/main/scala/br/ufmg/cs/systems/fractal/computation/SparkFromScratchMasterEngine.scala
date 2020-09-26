@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.function.IntConsumer
 
 import akka.actor._
+import br.ufmg.cs.systems.fractal.FractalSparkRunner
 import br.ufmg.cs.systems.fractal.conf.SparkConfiguration
 import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator
 import br.ufmg.cs.systems.fractal.graph.MainGraph
@@ -94,12 +95,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
     // save original container, i.e., without parents' computations
     val originalContainer = config.computationContainer[S]
-    //    logInfo (s"From scratch computation (${this})." +
-    //      s" Original computation: ${originalContainer}")
-
     // we will contruct the pipeline in this var
     var cc = originalContainer.withComputationLabel("last_step_begins")
-
     // add parents' computations
     var curr: SparkMasterEngine[S] = this
     while (curr.parentOpt.isDefined) {
@@ -154,9 +151,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         ccListNew = computation :: ccListNew
         i += 1
       }
-      //ccList = null
       cc = ccListNew.get(0).withComputationLabel("first_computation")
-      //ccListNew = null
       cc.setDepth(0)
       cc
     }
@@ -194,7 +189,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         aggAccums = _aggAccums,
         previousAggregationsBc = previousAggregationsBc)
 
-      execEngines.persist(MEMORY_AND_DISK_SER)
+      execEngines.persist(DISK_ONLY)
       execEngines.foreachPartition(_ => {})
 
       val enumerationElapsed = System.currentTimeMillis - enumerationStart
@@ -354,9 +349,15 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             var compute1 = 0L
             var nextComputation = c.nextComputation()
             val newRet = new ComputationResults[S]
-            val start0 = System.currentTimeMillis
 
+
+            val start0 = System.currentTimeMillis
             compute0 = System.currentTimeMillis
+
+            extend_time_all = 0
+            ser_time_all = 0
+            colors_all = 0
+
             for (result <- ret.getResults) {
               val subgraph = result.subgraph
 
@@ -365,9 +366,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
               subgraph.nextExtensionLevel()
               newRet.addAll(nextComputation.compute(subgraph))
-
               subgraph.previousExtensionLevel()
             }
+
             compute1 = System.currentTimeMillis - compute0
 
             nextComputation = nextComputation.nextComputation
@@ -381,11 +382,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             } else {
               val stepTime = System.currentTimeMillis - start0
               logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${stepTime / 1000.0}s; " +
-                s"useful work: ${(extend_time_all + ser_time_all + coloros_all) / 1000.0}s; coloros: ${coloros_all / 1000.0}s;")
+                s"useful work: ${(extend_time_all + ser_time_all) / 1000.0}s; colors: ${colors_all / 1000.0}s;")
               //s"extend_time: ${extend_time_all / 1000.0}s; ser_time: ${ser_time_all / 1000.0}s")
               extend_time_all = 0
               ser_time_all = 0
-              coloros_all = 0
+              colors_all = 0
             }
           }
 
@@ -420,7 +421,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
       var extend_time_all = 0L
       var ser_time_all = 0L
-      var coloros_all = 0L
+      var colors_all = 0L
 
       private def hasNextComputation(iter: SubgraphEnumerator[S],
                                      c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
@@ -431,7 +432,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val states = KClistEnumerator.getColors(graph)
         val result = new ComputationResults[S]
 
-        var iter_len = 0
+        var iter_len = 0L
+        var iter_ser_len = 0L
 
 
         while (iter.hasNext) {
@@ -439,23 +441,23 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           val prefixSize = iter.prefix.size()
           val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
-          val neighbours = graph.getVertexNeighbours(u)
 
+          val (uniqColors, elapsed) = FractalSparkRunner.time {
+            val dag = iter.getDag
+            val neighbours = graph.getVertexNeighbours(u)
 
-          val dag = iter.getDag
-          val cur = if (!dag.containsKey(u)) neighbours.cursor() else dag.get(u).cursor()
-
-
-          val time12 = System.currentTimeMillis
-          var neigh_colors: Set[Int] = Set(states(u))
-          while (cur.moveNext()) {
-            neigh_colors += states(cur.elem())
+            val cur = if (!dag.containsKey(u)) neighbours.cursor() else dag.get(u).cursor()
+            val neigh_colors = ListBuffer.empty[Int]
+            neigh_colors += states(u)
+            while (cur.moveNext()) {
+              neigh_colors += states(cur.elem())
+            }
+            neigh_colors.distinct.size
           }
-          val dager = System.currentTimeMillis - time12
-          coloros_all += dager
+          colors_all += elapsed
 
           //k-clique contains k colors
-          val uniqColors = neigh_colors.size
+          //val uniqColors = neigh_colors.distinct.size
 
           // size = cliqueSize - 1
           // maxPossibleSize = 0 is the first computation
@@ -473,8 +475,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             val ser = System.currentTimeMillis
             val bytes = SparkConfiguration.serialize(next_iter)
-            iter_len += bytes.length
             val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
+
+            iter_len += SizeEstimator.estimate(new_iter)
+            iter_ser_len += SizeEstimator.estimate(bytes)
+
             val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
             val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
 
@@ -493,7 +498,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             //}
           }
         }
-        //logWarning("iter bytes: " + iter_len)
+        //logWarning("iter bytes: " + iter_len+  " iter_ser_len " + iter_ser_len)
         result
       }
 
