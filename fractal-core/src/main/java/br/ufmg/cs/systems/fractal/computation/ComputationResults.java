@@ -12,8 +12,16 @@ public class ComputationResults<S extends Subgraph> {
         return results.isEmpty();
     }
 
+    public int size() {
+        return results.size();
+    }
+
     public ComputationResults() {
         results = new ArrayList<>();
+    }
+
+    public ComputationResult<S> get(int i) {
+        return results.get(i);
     }
 
     public List<ComputationResult<S>> getResults() {

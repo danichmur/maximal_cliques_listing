@@ -1,5 +1,7 @@
 package br.ufmg.cs.systems.fractal.computation
 
+import java.util
+import java.util.Arrays
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 import java.util.function.IntConsumer
@@ -292,7 +294,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
       def apply(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
         val config = c.getConfig
-        KClistEnumerator.size = Refrigerator.size
+        //KClistEnumerator.size = Refrigerator.size
 
         //        val t = iter.prefix.size() + iter.getDag.size()
         //        if (c.getDepth != 0 && t < Refrigerator.size) {
@@ -342,51 +344,126 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           var start = System.currentTimeMillis
 
           var ret = processCompute(iter, c)
-          var done = false
 
-          while (!(ret.isEmpty || done)) {
-            var compute0 = 0L
-            var compute1 = 0L
-            var nextComputation = c.nextComputation()
-            val newRet = new ComputationResults[S]
+          val newVersion = true
 
+          if (newVersion) {
+            //---------------------------------------------------------------------------------------------------------
+            val computationTree = new ComputationTree[S](c, null)
 
-            val start0 = System.currentTimeMillis
-            compute0 = System.currentTimeMillis
-
-            extend_time_all = 0
-            ser_time_all = 0
-            colors_all = 0
-
-            for (result <- ret.getResults) {
-              val subgraph = result.subgraph
-
-              nextComputation.getSubgraphEnumerator.set(nextComputation, subgraph)
-              nextComputation.getSubgraphEnumerator.setForFrozen(result.enumerator.getDag)
-
-              subgraph.nextExtensionLevel()
-              newRet.addAll(nextComputation.compute(subgraph))
-              subgraph.previousExtensionLevel()
+            for (r <- ret.getResults) {
+              computationTree.adopt(new ComputationTree[S](computationTree, c.nextComputation(), r))
             }
 
-            compute1 = System.currentTimeMillis - compute0
+            var result = computationTree
+            var done = false
+            while (!done) {
 
-            nextComputation = nextComputation.nextComputation
-            ret = newRet
-
-            if (ret.getStep == Refrigerator.size + 1) {
-              for (result <- ret.getResults) {
-                Refrigerator.result = result.subgraph.getVertices :: Refrigerator.result
+              if (result != null) {
+                //visit first available child if possible
+                val child = result.visit()
+                if (child == null) {
+                  //well, we have no children, go back to parent
+                  result.killChildren()
+                  var back = true
+                  while (result.hasParent && back) {
+                    result = result.parent
+                    val child0 = result.visit()
+                    if (child0 != null) {
+                      result = child0
+                      back = false
+                    }
+                  }
+                  if (result.parent == null) {
+                    //oh, this is init parent, we have visited all nodes
+                    done = true
+                  }
+                } else {
+                  //we go deeper, result is child
+                  result = child
+                }
               }
-              done = true
-            } else {
-              val stepTime = System.currentTimeMillis - start0
-              logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${stepTime / 1000.0}s; " +
-                s"useful work: ${(extend_time_all + ser_time_all) / 1000.0}s; colors: ${colors_all / 1000.0}s;")
-              //s"extend_time: ${extend_time_all / 1000.0}s; ser_time: ${ser_time_all / 1000.0}s")
+
+              if (!done) {
+                val subgraph = result.head.subgraph
+                if (subgraph.getVertices.size() == Refrigerator.size) {
+                  Refrigerator.result = subgraph.getVertices :: Refrigerator.result
+                  done = true
+                  //TODO: pass top
+                  if (Refrigerator.result.size > 2) {
+                    done = true
+                  }
+                } else {
+                  val nextComp = result.nextComputation
+                  nextComp.getSubgraphEnumerator.set(nextComp, subgraph)
+                  nextComp.getSubgraphEnumerator.setForFrozen(result.head.enumerator.getDag)
+
+                  subgraph.nextExtensionLevel()
+                  val results = nextComp.compute(subgraph).getResults
+                  subgraph.previousExtensionLevel()
+
+                  for (orphan <- results) {
+                    //logWarning("" + orphan.subgraph.getVertices.size)
+                    val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
+                    result.adopt(c)
+                  }
+                  //logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}")
+
+                }
+              }
+            }
+            //---------------------------------------------------------------------------------------------------------
+          } else {
+            var done = false
+
+            while (!(ret.isEmpty || done)) {
+              var compute0 = 0L
+              var compute1 = 0L
+              var nextComputation = c.nextComputation()
+              val newRet = new ComputationResults[S]
+
+
+              val start0 = System.currentTimeMillis
+              compute0 = System.currentTimeMillis
+
               extend_time_all = 0
               ser_time_all = 0
               colors_all = 0
+              val a = ret.getStep
+
+              for (result <- ret.getResults) {
+                val subgraph = result.subgraph
+
+                nextComputation.getSubgraphEnumerator.set(nextComputation, subgraph)
+                nextComputation.getSubgraphEnumerator.setForFrozen(result.enumerator.getDag)
+
+                subgraph.nextExtensionLevel()
+                val c = nextComputation.compute(subgraph)
+                newRet.addAll(c)
+                subgraph.previousExtensionLevel()
+              }
+
+              compute1 = System.currentTimeMillis - compute0
+
+              nextComputation = nextComputation.nextComputation
+              ret = newRet
+
+              if (ret.getStep == Refrigerator.size) {
+                //we are done here
+                for (result <- ret.getResults) {
+                  Refrigerator.result = result.subgraph.getVertices :: Refrigerator.result
+                }
+                done = true
+              } else {
+
+                val stepTime = System.currentTimeMillis - start0
+//                logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${stepTime / 1000.0}s; " +
+//                  s"useful work: ${(extend_time_all + ser_time_all) / 1000.0}s; colors: ${colors_all / 1000.0}s;")
+                //s"extend_time: ${extend_time_all / 1000.0}s; ser_time: ${ser_time_all / 1000.0}s")
+                extend_time_all = 0
+                ser_time_all = 0
+                colors_all = 0
+              }
             }
           }
 
@@ -428,7 +505,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         //var currentSubgraph: S = null.asInstanceOf[S]
 
         val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
-        val size = Refrigerator.size
+        val size = Refrigerator.size - 1
         val states = KClistEnumerator.getColors(graph)
         val result = new ComputationResults[S]
 
@@ -439,19 +516,29 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         while (iter.hasNext) {
           val u = iter.nextElem()
 
-          val prefixSize = iter.prefix.size()
+          val prefixSize = iter.getSubgraph.getVertices.size()
           val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
 
           val (uniqColors, elapsed) = FractalSparkRunner.time {
             val dag = iter.getDag
             val neighbours = graph.getVertexNeighbours(u)
 
-            val cur = if (!dag.containsKey(u)) neighbours.cursor() else dag.get(u).cursor()
+            val (size, arr) = if (!dag.containsKey(u)) (neighbours.size, neighbours.toIntArray) else {
+              val dagNeighbours = dag.get(u)
+              (dagNeighbours.size, dagNeighbours.getBackingArray)
+
+            }
+
             val neigh_colors = ListBuffer.empty[Int]
             neigh_colors += states(u)
-            while (cur.moveNext()) {
-              neigh_colors += states(cur.elem())
+            var i = 0
+            while (i < size) {
+              neigh_colors += states(arr(i))
+              i += 1
             }
+//            while (cur.moveNext()) {
+//              neigh_colors += states(cur.elem())
+//            }
             neigh_colors.distinct.size
           }
           colors_all += elapsed
@@ -498,36 +585,51 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             //}
           }
         }
-        //logWarning("iter bytes: " + iter_len+  " iter_ser_len " + iter_ser_len)
+        logWarning("iter bytes: " + iter_len +  " iter_ser_len " + iter_ser_len)
         result
       }
 
       private def lastComputation(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+        val WRITE_TO_FILE = false
 
         var addWords = 0L
         var subgraphsGenerated = 0L
 
         val wordIds = iter.getWordIds
+        val result = new ComputationResults[S]
+
         if (wordIds != null) {
           KClistEnumerator.count += 1
 
-          lastStepConsumer.set(iter.getSubgraph, c)
-          wordIds.forEach(lastStepConsumer)
-          addWords += lastStepConsumer.addWords
-          subgraphsGenerated += lastStepConsumer.subgraphsGenerated
+          if (WRITE_TO_FILE) {
+            lastStepConsumer.set(iter.getSubgraph, c)
+            wordIds.forEach(lastStepConsumer)
+            addWords += lastStepConsumer.addWords
+            subgraphsGenerated += lastStepConsumer.subgraphsGenerated
+          } else {
+            val bytes = SparkConfiguration.serialize(iter)
+            val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
 
+            val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
+            val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
+
+            for (w <- wordIds) {
+              new_subgraph.addWord(w)
+            }
+            result.add(new_iter, new_subgraph)
+          }
         } else {
-
           val subgraph = iter.next()
           addWords += 1
           if (c.filter(subgraph)) {
             subgraphsGenerated += 1
             c.process(subgraph)
           }
-
+          //TODO?
+          //result.add?
         }
 
-        new ComputationResults[S]
+        result
       }
 
       private def processCompute(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
@@ -562,6 +664,7 @@ class LastStepConsumer[E <: Subgraph] extends IntConsumer {
     subgraph.addWord(w)
     if (computation.filter(subgraph)) {
       subgraphsGenerated += 1
+      //print to file, may be useful
       computation.process(subgraph)
     }
     subgraph.removeLastWord()

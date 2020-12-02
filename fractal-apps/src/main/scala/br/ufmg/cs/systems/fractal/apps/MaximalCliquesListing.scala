@@ -74,6 +74,7 @@ object MaximalCliquesListing extends Logging {
 
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
+
     val logLevel = "WARN"
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
@@ -81,9 +82,10 @@ object MaximalCliquesListing extends Logging {
     //conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
     val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_600"
-   // val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
+    //val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
     //val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_260"
-    //val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_300"
+  //  val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_4"
+   // val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_300"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -158,10 +160,12 @@ object MaximalCliquesListing extends Logging {
 
     val time = System.currentTimeMillis()
     Refrigerator.start = time
-   val s = 2399
+
+     val s = 2400
     //val s = 3
     //val s = 1039
-    //val s = 1199
+    //val s = 16
+    //val s = 1200
 
     addCliques(s)
 
@@ -170,6 +174,7 @@ object MaximalCliquesListing extends Logging {
 
     for (r <- Refrigerator.result) {
       //TODO vertex original ids
+      r.toArray()
       println(r.size) //toArray.sorted.deep.mkString(", "))
     }
 
