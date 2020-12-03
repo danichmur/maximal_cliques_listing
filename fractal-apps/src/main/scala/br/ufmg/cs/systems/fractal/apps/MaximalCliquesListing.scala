@@ -85,7 +85,7 @@ object MaximalCliquesListing extends Logging {
     //val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
     //val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_260"
   //  val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_4"
-   // val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_300"
+    //val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_300"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -164,8 +164,8 @@ object MaximalCliquesListing extends Logging {
      val s = 2400
     //val s = 3
     //val s = 1039
-    //val s = 16
-    //val s = 1200
+  // val s = 16
+   // val s = 1200
 
     addCliques(s)
 

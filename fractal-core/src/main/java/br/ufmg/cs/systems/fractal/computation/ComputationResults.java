@@ -43,4 +43,8 @@ public class ComputationResults<S extends Subgraph> {
     public void addAll(ComputationResults<S> newResults) {
         results.addAll(newResults.results);
     }
+
+    public void removeFirst() {
+        results.remove(0);
+    }
 }

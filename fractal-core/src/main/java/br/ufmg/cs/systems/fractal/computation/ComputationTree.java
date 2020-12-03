@@ -7,6 +7,11 @@ import java.util.ArrayList;
 
 public class ComputationTree<S extends Subgraph> {
     Computation<S> nextComputation;
+
+    public void setHead(ComputationResult<S> head) {
+        this.head = head;
+    }
+
     ComputationResult<S> head;
     ComputationTree<S> parent;
     private List<ComputationTree<S>> children;
@@ -26,7 +31,7 @@ public class ComputationTree<S extends Subgraph> {
             this.level = parent.level + 1;
         }
 
-        id = idCounter++;
+        updateId();
     }
 
     ComputationTree(Computation<S> nextComputation, ComputationResult<S> head) {
@@ -58,5 +63,13 @@ public class ComputationTree<S extends Subgraph> {
 
     public void killChildren() {
         children = new ArrayList<>();
+    }
+
+    public void updateId() {
+        id = idCounter++;
+    }
+
+    public void updateLevel() {
+        level++;
     }
 }

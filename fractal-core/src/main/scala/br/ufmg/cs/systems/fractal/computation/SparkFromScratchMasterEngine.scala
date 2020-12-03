@@ -357,9 +357,12 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             var result = computationTree
             var done = false
+            var repeat = false
             while (!done) {
 
-              if (result != null) {
+              val start0 = System.currentTimeMillis
+
+              if (result != null && !repeat) {
                 //visit first available child if possible
                 val child = result.visit()
                 if (child == null) {
@@ -388,11 +391,12 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 val subgraph = result.head.subgraph
                 if (subgraph.getVertices.size() == Refrigerator.size) {
                   Refrigerator.result = subgraph.getVertices :: Refrigerator.result
-                  done = true
-                  //TODO: pass top
-                  if (Refrigerator.result.size > 2) {
+//                  done = true
+                  //TODO: pass top N
+                  if (Refrigerator.result.size > 3) {
                     done = true
                   }
+                  repeat = false
                 } else {
                   val nextComp = result.nextComputation
                   nextComp.getSubgraphEnumerator.set(nextComp, subgraph)
@@ -401,13 +405,32 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   subgraph.nextExtensionLevel()
                   val results = nextComp.compute(subgraph).getResults
                   subgraph.previousExtensionLevel()
+                  if (results.length == 1) {
+                    result.setHead(results.get(0))
+                    result.updateId()
+                    result.updateLevel()
 
-                  for (orphan <- results) {
-                    //logWarning("" + orphan.subgraph.getVertices.size)
-                    val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
-                    result.adopt(c)
+                    repeat = true
+                  } else {
+                    for (orphan <- results) {
+                      //logWarning("" + orphan.subgraph.getVertices.size)
+                      val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
+                      result.adopt(c)
+                    }
+                    repeat = false
                   }
-                  //logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}")
+
+
+
+
+                  val stepTime = System.currentTimeMillis - start0
+                  logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
+//                  logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
+//                    s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
+
+                  extend_time_all = 0
+                  ser_time_all = 0
+                  colors_all = 0
 
                 }
               }
@@ -457,9 +480,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               } else {
 
                 val stepTime = System.currentTimeMillis - start0
-//                logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${stepTime / 1000.0}s; " +
-//                  s"useful work: ${(extend_time_all + ser_time_all) / 1000.0}s; colors: ${colors_all / 1000.0}s;")
-                //s"extend_time: ${extend_time_all / 1000.0}s; ser_time: ${ser_time_all / 1000.0}s")
+//                                logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${stepTime / 1000.0}s; " +
+//                                  s"useful work: ${(extend_time_all + ser_time_all) / 1000.0}s; colors: ${colors_all / 1000.0}s;")
+//                s"extend_time: ${extend_time_all / 1000.0}s; ser_time: ${ser_time_all / 1000.0}s")
                 extend_time_all = 0
                 ser_time_all = 0
                 colors_all = 0
@@ -509,8 +532,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val states = KClistEnumerator.getColors(graph)
         val result = new ComputationResults[S]
 
-        var iter_len = 0L
-        var iter_ser_len = 0L
+//        var iter_len = 0L
+//        var iter_ser_len = 0L
 
 
         while (iter.hasNext) {
@@ -521,12 +544,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           val (uniqColors, elapsed) = FractalSparkRunner.time {
             val dag = iter.getDag
-            val neighbours = graph.getVertexNeighbours(u)
 
-            val (size, arr) = if (!dag.containsKey(u)) (neighbours.size, neighbours.toIntArray) else {
+            val (size, arr) = if (!dag.containsKey(u)) {
+              val neighbours = graph.getVertexNeighbours(u)
+              (neighbours.size, neighbours.toIntArray)
+            } else {
               val dagNeighbours = dag.get(u)
               (dagNeighbours.size, dagNeighbours.getBackingArray)
-
             }
 
             val neigh_colors = ListBuffer.empty[Int]
@@ -536,11 +560,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               neigh_colors += states(arr(i))
               i += 1
             }
-//            while (cur.moveNext()) {
-//              neigh_colors += states(cur.elem())
-//            }
             neigh_colors.distinct.size
           }
+
           colors_all += elapsed
 
           //k-clique contains k colors
@@ -548,6 +570,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           // size = cliqueSize - 1
           // maxPossibleSize = 0 is the first computation
+
           val isSizeOk = !(maxPossibleSize == 0 && uniqColors < size || maxPossibleSize != 0 && maxPossibleSize < size)
 
           if (isSizeOk && uniqColors + prefixSize > size) {
@@ -557,35 +580,30 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             val time0 = System.currentTimeMillis
             val next_iter = iter.extend(u)
             val extend_time = System.currentTimeMillis - time0
-
             extend_time_all += extend_time
+
 
             val ser = System.currentTimeMillis
             val bytes = SparkConfiguration.serialize(next_iter)
             val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
 
-            iter_len += SizeEstimator.estimate(new_iter)
-            iter_ser_len += SizeEstimator.estimate(bytes)
+            //iter_len += SizeEstimator.estimate(new_iter)
+            //iter_ser_len += SizeEstimator.estimate(bytes)
 
             val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
             val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
 
             val ser_time = System.currentTimeMillis - ser
             ser_time_all += ser_time
-            //logWarning(s"extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s")
+
+
+            logWarning(s"extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
 
             result.add(new_iter, new_subgraph)
 
-            //currentSubgraph = iter.getSubgraph
-            //
-            //if (c.filter(currentSubgraph)) {
-            //  currentSubgraph.nextExtensionLevel()
-            //  nextComp.compute(currentSubgraph)
-            //  currentSubgraph.previousExtensionLevel()
-            //}
           }
         }
-        logWarning("iter bytes: " + iter_len +  " iter_ser_len " + iter_ser_len)
+        //logWarning("iter bytes: " + iter_len +  " iter_ser_len " + iter_ser_len)
         result
       }
 
