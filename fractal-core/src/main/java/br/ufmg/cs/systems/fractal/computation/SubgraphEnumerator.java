@@ -33,10 +33,20 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    protected IntCursor cur;
 
-   protected boolean shouldRemoveLastWord;
+   public boolean shouldRemoveLastWord;
 
    private AtomicBoolean active;
    private boolean frozen;
+
+   public boolean isGetFirstCandidate() {
+      return getFirstCandidate;
+   }
+
+   public void setGetFirstCandidate(boolean getFirstCandidate) {
+      this.getFirstCandidate = getFirstCandidate;
+   }
+
+   private boolean getFirstCandidate;
 
    public String computationLabel() {
       return computation.computationLabel();
@@ -49,6 +59,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
    public boolean isFrozen() {
       return frozen;
    }
+
 
    public void setFrozen(boolean frozen) {this.frozen = frozen; }
 

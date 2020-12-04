@@ -390,12 +390,15 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               if (!done) {
                 val subgraph = result.head.subgraph
                 if (subgraph.getVertices.size() == Refrigerator.size) {
+
+//                  Refrigerator.result = new IntArrayList() :: Refrigerator.result
                   Refrigerator.result = subgraph.getVertices :: Refrigerator.result
-//                  done = true
                   //TODO: pass top N
                   if (Refrigerator.result.size > 3) {
                     done = true
+
                   }
+                  logWarning("FOUND!")
                   repeat = false
                 } else {
                   val nextComp = result.nextComputation
@@ -409,7 +412,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                     result.setHead(results.get(0))
                     result.updateId()
                     result.updateLevel()
-
+                    nextComp.getSubgraphEnumerator.setGetFirstCandidate(true)
                     repeat = true
                   } else {
                     for (orphan <- results) {
@@ -424,7 +427,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
 
                   val stepTime = System.currentTimeMillis - start0
-                  logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
+                  //logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
 //                  logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
 //                    s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
 
@@ -535,8 +538,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 //        var iter_len = 0L
 //        var iter_ser_len = 0L
 
+        val getOnlyFirst = iter.isGetFirstCandidate
+        var found = false
 
-        while (iter.hasNext) {
+        while (iter.hasNext && !(found && getOnlyFirst)) {
           val u = iter.nextElem()
 
           val prefixSize = iter.getSubgraph.getVertices.size()
@@ -582,25 +587,27 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             val extend_time = System.currentTimeMillis - time0
             extend_time_all += extend_time
 
+            if (!getOnlyFirst) {
+              val ser = System.currentTimeMillis
+              val bytes = SparkConfiguration.serialize(next_iter)
+              val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
 
-            val ser = System.currentTimeMillis
-            val bytes = SparkConfiguration.serialize(next_iter)
-            val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
+              //iter_len += SizeEstimator.estimate(new_iter)
+              //iter_ser_len += SizeEstimator.estimate(bytes)
 
-            //iter_len += SizeEstimator.estimate(new_iter)
-            //iter_ser_len += SizeEstimator.estimate(bytes)
+              val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
+              val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
 
-            val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
-            val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
-
-            val ser_time = System.currentTimeMillis - ser
-            ser_time_all += ser_time
-
-
-            logWarning(s"extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
-
-            result.add(new_iter, new_subgraph)
-
+              val ser_time = System.currentTimeMillis - ser
+              ser_time_all += ser_time
+              result.add(new_iter, new_subgraph)
+              //logWarning(s"extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
+            } else {
+              iter.shouldRemoveLastWord = false
+              result.add(iter, iter.getSubgraph)
+              //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
+            }
+            found = true
           }
         }
         //logWarning("iter bytes: " + iter_len +  " iter_ser_len " + iter_ser_len)
