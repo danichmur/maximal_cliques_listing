@@ -386,7 +386,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   result = child
                 }
               }
-
               if (!done) {
                 val subgraph = result.head.subgraph
                 if (subgraph.getVertices.size() == Refrigerator.size) {
@@ -412,6 +411,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                     result.setHead(results.get(0))
                     result.updateId()
                     result.updateLevel()
+                    //so here is the logic:
+                    // on the previous iteration we checked all candidates, if the results.length == 1, we have only one candidate
+                    // so, starting from this point we only need to find first candidate from next candidates
+                    // because the number may only falling
                     nextComp.getSubgraphEnumerator.setGetFirstCandidate(true)
                     repeat = true
                   } else {
@@ -499,7 +502,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           logInfo(s"InitialComputation step=${c.getStep}" +
             s" partitionId=${c.getPartitionId} took ${elapsed} ms")
 
-          if (config.wsEnabled()) {
+          if (false && config.wsEnabled()) {
             // setup work-stealing system
             start = System.currentTimeMillis
 
