@@ -65,12 +65,33 @@ sealed trait ComputationContainer[E <: Subgraph] extends Computation[E]
   var nextComputationOpt: Option[Computation[E]]
 
   @transient lazy val lastComputation: ComputationContainer[E] = {
-    nextComputationOpt match {
-      case Some(nextComputation: ComputationContainer[E]) =>
-        nextComputation.lastComputation
-      case _ =>
-        this
+    var nextComputationOpt0 = nextComputationOpt
+    var last = false
+    while (!last) {
+      nextComputationOpt0 match {
+        case Some(nc: ComputationContainer[E]) =>
+         nc.nextComputationOpt match {
+           case Some(_) =>
+             nextComputationOpt0 = nc.nextComputationOpt
+           case _ =>
+             last = true
+         }
+        case _ =>
+          last = true
+      }
     }
+
+    nextComputationOpt0 match {
+      case Some(nc: ComputationContainer[E]) => nc
+      case _ => this
+    }
+
+//    nextComputationOpt match {
+//      case Some(nextComputation: ComputationContainer[E]) =>
+//        nextComputation.lastComputation
+//      case _ =>
+//        this
+//    }
   }
 
   def withComputationAppended(lastComputation: Computation[E])
@@ -580,6 +601,7 @@ case class VComputationContainer[E <: VertexInducedSubgraph](
     if (root) {
       var i = 0
       var next = _nextComputation
+
       while (next != null) {
         next = next.nextComputation()
         i += 1
@@ -602,13 +624,13 @@ case class VComputationContainer[E <: VertexInducedSubgraph](
       while (i != 0) {
         i -= 1
         curr = in.readObject().asInstanceOf[VComputationContainer[E]]
+
         up.nextComputationOpt = Some(curr)
         up = curr
       }
-      if(curr != null){
-        curr.nextComputationOpt = None
+      if(up != null){
+        up.nextComputationOpt = None
       }
-
     }
 
   }

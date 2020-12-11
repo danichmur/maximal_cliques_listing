@@ -157,7 +157,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       cc.setDepth(0)
       cc
     }
-
+    cc.setRoot()
     // set the modified pipelined computation
     this.config.set(SparkConfiguration.COMPUTATION_CONTAINER, cc)
 
@@ -411,7 +411,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                     result.setHead(results.get(0))
                     result.updateId()
                     result.updateLevel()
-                    //so here is the logic:
+                    // so here is the logic:
                     // on the previous iteration we checked all candidates, if the results.length == 1, we have only one candidate
                     // so, starting from this point we only need to find first candidate from next candidates
                     // because the number may only falling
@@ -430,7 +430,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
 
                   val stepTime = System.currentTimeMillis - start0
-                  //logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
+                  logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
 //                  logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
 //                    s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
 
@@ -530,20 +530,17 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       var colors_all = 0L
 
       private def hasNextComputation(iter: SubgraphEnumerator[S],
-                                     c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
-        //var currentSubgraph: S = null.asInstanceOf[S]
+                                     c: Computation[S],
+                                     nextComp: Computation[S]): ComputationResults[S] = {
 
         val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
         val size = Refrigerator.size - 1
         val states = KClistEnumerator.getColors(graph)
         val result = new ComputationResults[S]
 
-//        var iter_len = 0L
-//        var iter_ser_len = 0L
-
         val getOnlyFirst = iter.isGetFirstCandidate
         var found = false
-
+        var cou = 1
         while (iter.hasNext && !(found && getOnlyFirst)) {
           val u = iter.nextElem()
 
@@ -585,6 +582,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             if (prefixSize == 0) {
               Refrigerator.graphCounter += 1
             }
+            logWarning(cou.toString)
+            cou += 1
             val time0 = System.currentTimeMillis
             val next_iter = iter.extend(u)
             val extend_time = System.currentTimeMillis - time0
@@ -594,9 +593,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               val ser = System.currentTimeMillis
               val bytes = SparkConfiguration.serialize(next_iter)
               val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
-
-              //iter_len += SizeEstimator.estimate(new_iter)
-              //iter_ser_len += SizeEstimator.estimate(bytes)
 
               val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
               val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
@@ -613,7 +609,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             found = true
           }
         }
-        //logWarning("iter bytes: " + iter_len +  " iter_ser_len " + iter_ser_len)
         result
       }
 
