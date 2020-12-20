@@ -2,6 +2,7 @@ package br.ufmg.cs.systems.fractal.gmlib.clique;
 
 import br.ufmg.cs.systems.fractal.computation.SubgraphEnumerator;
 import br.ufmg.cs.systems.fractal.conf.Configuration;
+import br.ufmg.cs.systems.fractal.graph.Edge;
 import br.ufmg.cs.systems.fractal.graph.MainGraph;
 import br.ufmg.cs.systems.fractal.graph.VertexNeighbourhood;
 import br.ufmg.cs.systems.fractal.subgraph.Subgraph;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.*;
 
 public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> implements Serializable {
@@ -39,6 +41,59 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         }
         return colors;
     }
+
+    public static void setColors(Integer[] colors0) {
+        colors = new ArrayList<>(Arrays.asList(colors0));
+    }
+
+    public static Integer[] getColors2(Edge<Integer>[] edges1) {
+        System.out.println("STARRT COLORING");
+        long time = System.currentTimeMillis();
+        List<Graph.Edge1> edges = new ArrayList<>();
+        int N = 0;
+        for (br.ufmg.cs.systems.fractal.graph.Edge<Integer> integerEdge : edges1) {
+            int e1 = integerEdge.getSourceId();
+            int e2 = integerEdge.getDestinationId();
+            if (e1 > N) N = e1;
+            if (e2 > N) N = e2;
+            edges.add(new Graph.Edge1(e1, e2));
+        }
+        N++;
+        Graph graph = new Graph(edges, N);
+        List<Integer> result = new ArrayList<>(Collections.nCopies(N, 0));
+        for (int u = 0; u < N; u++) {
+            Set<Integer> assigned = new TreeSet<>();
+            for (int i : graph.adjList.get(u)) {
+                if (result.get(i) != 0) {
+                    assigned.add(result.get(i));
+                }
+            }
+            int color = 1;
+            for (Integer c : assigned) {
+                if (color != c) {
+                    break;
+                }
+                color++;
+            }
+            result.set(u, color);
+        }
+        neigboursColorsCount = new ArrayList<>(Collections.nCopies(N, 0));
+        for (int u = 0; u < N; u++) {
+            Set<Integer> assigned = new TreeSet<>();
+            for (int i : graph.adjList.get(u)) {
+                assigned.add(result.get(i));
+            }
+            neigboursColorsCount.set(u, assigned.size());
+        }
+
+
+        System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");
+        Integer[] array = new Integer[result.size()];
+        result.toArray(array);
+        return array;
+    }
+
+
 
     //This guys serialize only dags
     private void writeObject(ObjectOutputStream out) throws IOException {
@@ -267,6 +322,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
     // Function to assign colors to vertices of graph
     private static List<Integer> colorGraph(MainGraph graph1) {
+        System.out.println("STARRT COLORING");
         long time = System.currentTimeMillis();
         int N = graph1.getNumberVertices();
         List<Graph.Edge1> edges = new ArrayList<>();
@@ -304,6 +360,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
 
         System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");
+        System.out.println(result);
         return result;
     }
 }

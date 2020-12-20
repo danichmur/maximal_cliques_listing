@@ -1,5 +1,6 @@
 package br.ufmg.cs.systems.fractal.apps
 
+import br.ufmg.cs.systems.fractal.GraphColoring.Msg
 import br.ufmg.cs.systems.fractal.computation.{Computation, Refrigerator}
 import br.ufmg.cs.systems.fractal._
 import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator
@@ -12,6 +13,7 @@ import org.apache.spark.graphx.lib._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.LongType
 import org.graphframes._
 
 case class CliquesList(
@@ -79,21 +81,28 @@ object MaximalCliquesListing extends Logging {
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
+    //conf.set("spark.executor.heartbeatInterval", "1s")
     //conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+
+    //val s = 2400
+    //val s = 3600
+    //val s = 3
+    //val s = 1040
+    //val s = 1200
 
    // val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_600"
     //val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_900"
-    val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200"
+    val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
     //val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
   //  val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_260"
-  //  val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_4"
+  //  val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els/for_kcore_4")
     //val graphPath = "/Users/danielmuraveyko/Desktop/els2/for_kcore_300"
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
 
-
-    //--------------------------------------------------
+    CFLVertexColoring.getColors(sc, graphPath)
+    //CFLVertexColoring.setcolors(sc)
 
 //
 //    val users: RDD[(VertexId, Int)] = sc.parallelize(Seq((1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)))
@@ -163,14 +172,6 @@ object MaximalCliquesListing extends Logging {
     val time = System.currentTimeMillis()
     Refrigerator.start = time
 
-    // val s = 2400
-    //val s = 3600
-    val s = 4800
-    //val s = 3
-   // val s = 1040
-  // val s = 16
-   // val s = 1200
-
     addCliques(s)
 
     logWarning("extends: " + KClistEnumerator.count.toString)
@@ -178,7 +179,6 @@ object MaximalCliquesListing extends Logging {
 
     for (r <- Refrigerator.result) {
       //TODO vertex original ids
-      r.toArray()
       println(r.size) //toArray.sorted.deep.mkString(", "))
     }
 

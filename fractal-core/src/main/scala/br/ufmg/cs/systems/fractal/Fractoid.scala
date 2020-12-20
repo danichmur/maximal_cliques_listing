@@ -350,8 +350,6 @@ case class Fractoid[S <: Subgraph : ClassTag](
       currResult = this.copy(config = config.withNewComputation(first))
     }
 
-    logWarning(s"results.foreach took ${(System.currentTimeMillis() - startTag) / 1000.0}s\n")
-
     currResult
   }
 

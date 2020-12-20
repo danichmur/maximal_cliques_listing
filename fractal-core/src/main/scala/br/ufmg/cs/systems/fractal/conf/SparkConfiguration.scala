@@ -198,7 +198,6 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
         val bytes = SparkConfiguration.serialize(cc)
         val newcc = SparkConfiguration.deserialize[Computation[E]](bytes)
         val elapsedTag = System.currentTimeMillis - startTag
-        logWarning(s"createComputation took ${elapsedTag}")
         newcc
       case Some(c) =>
         throw new RuntimeException (s"Invalid computation type: ${c}")

@@ -1,5 +1,6 @@
 package br.ufmg.cs.systems.fractal.computation
 
+import java.io.{BufferedInputStream, BufferedOutputStream, FileInputStream, FileOutputStream}
 import java.util
 import java.util.Arrays
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -109,18 +110,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     // configure custom ProcessComputeFunc and aggregations
     val processComputeFunc = getProcessComputeFunc()
     cc = {
-      //Exception in thread "main" java.lang.StackOverflowError
-      //      def withCustomFuncs(cc: ComputationContainer[S]): ComputationContainer[S] = cc.nextComputationOpt match {
-      //        case Some(c) =>
-      //          val ncc = withCustomFuncs(c.asInstanceOf[ComputationContainer[S]])
-      //          cc.shallowCopy(processComputeOpt = Option(processComputeFunc), nextComputationOpt = Option(ncc), processOpt = None)
-      //
-      //        case None =>
-      //          cc.shallowCopy(processComputeOpt = Option(processComputeFunc))
-      //      }
-      //cc = withCustomFuncs(cc).withComputationLabel("first_computation")
-
-
       var nextComputationOpt = cc.nextComputationOpt
       var ccList: List[ComputationContainer[S]] = List.empty
       while (nextComputationOpt.isDefined) {
@@ -191,7 +180,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         aggAccums = _aggAccums,
         previousAggregationsBc = previousAggregationsBc)
 
-      execEngines.persist(DISK_ONLY)
+      //execEngines.persist(DISK_ONLY)
       execEngines.foreachPartition(_ => {})
 
       val enumerationElapsed = System.currentTimeMillis - enumerationStart
@@ -342,8 +331,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           lastStepConsumer = new LastStepConsumer[S]()
 
           var start = System.currentTimeMillis
+          logWarning("START COMPUTING")
+          val start00 = System.currentTimeMillis
 
           var ret = processCompute(iter, c)
+          logWarning(s"time: ${(System.currentTimeMillis - start00) / 1000.0}s")
 
           val newVersion = true
 
@@ -387,6 +379,16 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 }
               }
               if (!done) {
+
+                if (result.head.serializedFileIter != "") {
+                  val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
+                  val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
+                  result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
+
+                  val subBis = new BufferedInputStream(new FileInputStream(result.head.serializedFileSub))
+                  val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
+                  result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
+                }
                 val subgraph = result.head.subgraph
                 if (subgraph.getVertices.size() == Refrigerator.size) {
 
@@ -419,7 +421,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                     repeat = true
                   } else {
                     for (orphan <- results) {
-                      //logWarning("" + orphan.subgraph.getVertices.size)
                       val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
                       result.adopt(c)
                     }
@@ -430,10 +431,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
 
                   val stepTime = System.currentTimeMillis - start0
-                  logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
-//                  logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
-//                    s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
-
+//                  logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
+                  if (result.level % 100 == 0) {
+                    logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
+                      s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
+                  }
                   extend_time_all = 0
                   ser_time_all = 0
                   colors_all = 0
@@ -529,9 +531,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       var ser_time_all = 0L
       var colors_all = 0L
 
+      //todo
+      var files_counter = 0L
+
       private def hasNextComputation(iter: SubgraphEnumerator[S],
                                      c: Computation[S],
                                      nextComp: Computation[S]): ComputationResults[S] = {
+        var cou = 1
 
         val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
         val size = Refrigerator.size - 1
@@ -540,7 +546,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
         val getOnlyFirst = iter.isGetFirstCandidate
         var found = false
-        var cou = 1
         while (iter.hasNext && !(found && getOnlyFirst)) {
           val u = iter.nextElem()
 
@@ -559,10 +564,12 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             }
 
             val neigh_colors = ListBuffer.empty[Int]
-            neigh_colors += states(u)
+            neigh_colors += states(graph.getVertex(u).getVertexOriginalId)
+            //neigh_colors += states(u)
             var i = 0
             while (i < size) {
-              neigh_colors += states(arr(i))
+              neigh_colors += states(graph.getVertex(arr(i)).getVertexOriginalId)
+              //neigh_colors += states(arr(i))
               i += 1
             }
             neigh_colors.distinct.size
@@ -582,7 +589,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             if (prefixSize == 0) {
               Refrigerator.graphCounter += 1
             }
-            logWarning(cou.toString)
+            //logWarning(cou.toString)
             cou += 1
             val time0 = System.currentTimeMillis
             val next_iter = iter.extend(u)
@@ -591,16 +598,39 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             if (!getOnlyFirst) {
               val ser = System.currentTimeMillis
-              val bytes = SparkConfiguration.serialize(next_iter)
-              val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
 
+              val bytes = SparkConfiguration.serialize(next_iter)
               val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
-              val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
+
+              //val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
+              //val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
+
+              val data = "/Users/danielmuraveyko/maximal_cliques_listing/my_data/"
+
+              val iterName = data + files_counter.toString + "_iter"
+              val subName = data + files_counter.toString + "_subgraph"
+              files_counter += 1
+
+              import java.io.FileOutputStream
+              try {
+                val fos = new FileOutputStream(iterName)
+                try fos.write(bytes)
+                finally if (fos != null) fos.close()
+              }
+              try {
+                val fos = new FileOutputStream(subName)
+                try fos.write(subgrap_bytes)
+                finally if (fos != null) fos.close()
+              }
 
               val ser_time = System.currentTimeMillis - ser
               ser_time_all += ser_time
-              result.add(new_iter, new_subgraph)
-              //logWarning(s"extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
+
+              //result.add(new_iter, new_subgraph)
+              result.add(iterName, subName)
+              logWarning("DUMP TO FILE! " + cou.toString +
+                s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+              )
             } else {
               iter.shouldRemoveLastWord = false
               result.add(iter, iter.getSubgraph)
