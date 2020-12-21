@@ -1,30 +1,16 @@
 package br.ufmg.cs.systems.fractal.apps
 
-import br.ufmg.cs.systems.fractal.GraphColoring.Msg
-import br.ufmg.cs.systems.fractal.computation.{Computation, Refrigerator}
+import br.ufmg.cs.systems.fractal.CFLVertexColoring.logWarning
+import br.ufmg.cs.systems.fractal.computation.Refrigerator
 import br.ufmg.cs.systems.fractal._
 import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator
-import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, VertexInducedSubgraph}
-import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging}
+import br.ufmg.cs.systems.fractal.util.Logging
 import org.apache.spark.{SparkConf, SparkContext}
-import org.neo4j.spark._
-import org.apache.spark.graphx._
-import org.apache.spark.graphx.lib._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql._
-import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.LongType
-import org.graphframes._
-
-import scala.reflect.io.File
 
 case class CliquesList(
                         fractalGraph: FractalGraph,
-                        commStrategy: String,
-                        numPartitions: Int,
                         explorationSteps: Int,
                         readyCliques: List[Set[Int]],
-                        kcore_map: Map[Int, Int],
                         dataPath : String,
                         N : Int
                       ) extends FractalSparkApp {
@@ -32,22 +18,12 @@ case class CliquesList(
   var foundedCliques : (List[Set[Int]], List[Set[Int]]) = (List(), List())
 
   def execute: Unit = {
-
-//    def epredCallback(cliques : List[Set[Int]]) = {
-//      new EdgeFilterFunc[EdgeInducedSubgraph] {
-//        override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
-//          !cliques.exists(c => c.contains(e.getSourceId) && c.contains(e.getDestinationId))
-//        }
-//      }
-//    }
-
-    val vfilter = (v : VertexInducedSubgraph, c : Computation[VertexInducedSubgraph]) => {
-      true
-    }
-
     //https://dl.acm.org/citation.cfm?id=3186125
     //Fractoid with the initial state for cliques
     val initialFractoid = fractalGraph.vfractoid.expand(1)
+
+    val commStrategy = "scratch"
+    val numPartitions = 1
 
     val testF = initialFractoid.
       //set("efilter", epredCallback(readyCliques)).
@@ -55,11 +31,8 @@ case class CliquesList(
       set ("num_partitions", numPartitions).
       set ("dump_path", dataPath).
       set ("top_n", N)
-
-    testF.setNew(explorationSteps, kcore_map)
-
-      val cliquesRes =
-        testF.explore(explorationSteps)
+    testF.setNew(explorationSteps)
+    val cliquesRes = testF.explore(explorationSteps)
 
     val (_, elapsed) = FractalSparkRunner.time {cliquesRes.compute()}
 
@@ -78,8 +51,6 @@ case class CliquesList(
 
 object MaximalCliquesListing extends Logging {
 
-  //525 v, 22415 e - 8 min
-
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
 
@@ -90,23 +61,73 @@ object MaximalCliquesListing extends Logging {
     //conf.set("spark.executor.heartbeatInterval", "1s")
     //conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    //TODO for 4800 max color is 4801
+    //TODO kcore? for 4800 max color is 4801
 
    //  val (s, graphPath) = (2400, "/Users/danielmuraveyko/Desktop/els2/for_kcore_600")
     // val (s, graphPath) = (3600, "/Users/danielmuraveyko/Desktop/els2/for_kcore_900")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
     // val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els/for_kcore_0")
     //val (s, graphPath) = (1040, "/Users/danielmuraveyko/Desktop/els2/for_kcore_260")
-    //val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els/for_kcore_4")
+   // val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els/for_kcore_4")
     // val (s, graphPath) = (1200, "/Users/danielmuraveyko/Desktop/els2/for_kcore_300")
     val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
+
+    val (c, colorMax, colorTime) = CFLVertexColoring.countAndSetColors(graphPath)
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
 
-    CFLVertexColoring.countAndSetColors(sc, graphPath)
+    val fc = new FractalContext(sc)
 
-//
+    logWarning(sc.uiWebUrl.getOrElse(""))
+    logWarning(s"Max color: $colorMax; time: $colorTime s")
+
+    val fractalGraph = fc.textFile(graphPath, graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph")
+    KClistEnumerator.setColors(c)
+
+    //TODO: if a graph can be colored with k colors, then the maximum clique in this graph must be smaller or equal to k
+    //var explorationSteps = kcore.head
+
+    val dataPath = "/Users/danielmuraveyko/maximal_cliques_listing/my_data/"
+
+
+    var cliques : List[Set[Int]] = List()
+    var cliquesIdx : List[Set[Int]] = List()
+
+    val addCliques = (steps : Int, N : Int) => {
+      val app = CliquesList(fractalGraph, steps, cliquesIdx, dataPath, N)
+      val (subgraphs, original_cliques) = app.findCliques()
+      cliques = cliques ++ original_cliques
+      cliquesIdx = cliquesIdx ++ subgraphs
+    }
+
+    val time = System.currentTimeMillis()
+    Refrigerator.start = time
+
+    val topN = 1
+    addCliques(s, topN)
+
+    logWarning("extends: " + KClistEnumerator.count.toString)
+    logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
+
+    for (r <- Refrigerator.result) {
+      //TODO vertex original ids
+      println(r.size) //toArray.sorted.deep.mkString(", "))
+    }
+
+    cleanDataFolder(dataPath)
+
+    fc.stop()
+    sc.stop()
+  }
+
+  def cleanDataFolder(path : String) : Unit = {
+    val f = new java.io.File(path).listFiles()
+    f.foreach(f => f.delete())
+  }
+}
+
+
 //    val users: RDD[(VertexId, Int)] = sc.parallelize(Seq((1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)))
 //    // Create an RDD for edges
 //    val relationships: RDD[Edge[Int]] = sc.parallelize(Seq(
@@ -137,7 +158,7 @@ object MaximalCliquesListing extends Logging {
 //    g.triplets.filter("src.id == 1")
 
 
-    //    val neo = Neo4j(sc)
+//    val neo = Neo4j(sc)
 //    val graphQuery = "MATCH (n:Person)-[r:KNOWS]->(m:Person) RETURN id(n) as source, id(m) as target, type(r) as value SKIP $_skip LIMIT $_limit"
 //    val graph: Graph[Long, String] = neo.rels(graphQuery).partitions(7).batch(200).loadGraph
 //
@@ -147,53 +168,17 @@ object MaximalCliquesListing extends Logging {
 //    sc.stop()
 //    return
 
-    //--------------------------------------------------
+//--------------------------------------------------
 
-    val fc = new FractalContext(sc)
 
-    logWarning(sc.uiWebUrl.getOrElse(""))
+//    def epredCallback(cliques : List[Set[Int]]) = {
+//      new EdgeFilterFunc[EdgeInducedSubgraph] {
+//        override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
+//          !cliques.exists(c => c.contains(e.getSourceId) && c.contains(e.getDestinationId))
+//        }
+//      }
+//    }
 
-    val graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph"
-    val fractalGraph = fc.textFile(graphPath, graphClass = graphClass)
-    val commStrategy = "scratch"
-    val numPartitions = 1
-    //TODO: if a graph can be colored with k colors, then the maximum clique in this graph must be smaller or equal to k
-    //var explorationSteps = kcore.head
-
-    val dataPath = "/Users/danielmuraveyko/maximal_cliques_listing/my_data/"
-
-    var cliques : List[Set[Int]] = List()
-    var cliquesIdx : List[Set[Int]] = List()
-
-    val addCliques = (steps : Int, N : Int) => {
-      val app = CliquesList(fractalGraph, commStrategy, numPartitions, steps, cliquesIdx, Map.empty, dataPath, N)
-      val (subgraphs, original_cliques) = app.findCliques()
-      cliques = cliques ++ original_cliques
-      cliquesIdx = cliquesIdx ++ subgraphs
-    }
-
-    val time = System.currentTimeMillis()
-    Refrigerator.start = time
-
-    val topN = 1
-    addCliques(s, topN)
-
-    logWarning("extends: " + KClistEnumerator.count.toString)
-    logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
-
-    for (r <- Refrigerator.result) {
-      //TODO vertex original ids?
-      println(r.size) //toArray.sorted.deep.mkString(", "))
-    }
-
-    cleanDataFolder(dataPath)
-
-    fc.stop()
-    sc.stop()
-  }
-
-  def cleanDataFolder(path : String) : Unit = {
-    val f = new java.io.File(path).listFiles()
-    f.foreach(f => f.delete())
-  }
-}
+//    val vfilter = (v : VertexInducedSubgraph, c : Computation[VertexInducedSubgraph]) => {
+//      true
+//    }

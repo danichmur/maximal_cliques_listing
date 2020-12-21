@@ -117,7 +117,7 @@ object CFLVertexColoring extends Logging {
     case _ => 0
   }
 
-  def countAndSetColors(sc: SparkContext, path : String): Unit = {
+  def countAndSetColors(path : String): (Array[Integer], Int, Long) = {
     val startTimeMillis = System.currentTimeMillis()
 
     val list = ListBuffer.empty[GraphInner.Edge1]
@@ -136,13 +136,11 @@ object CFLVertexColoring extends Logging {
     }
 
     val c = KClistEnumerator.getColors2(list.asJava, N + 1)
-    logWarning("Max color: " + c.max.toString)
-    //logWarning(c.deep.mkString(", "))
-    KClistEnumerator.setColors(c)
+
     val endTimeMillis = System.currentTimeMillis()
     val durationSeconds = (endTimeMillis - startTimeMillis) / 1000
 
-    logWarning(s"Total Execution getColors : ${durationSeconds.toString}s")
+    (c, c.max, durationSeconds)
   }
 
   def setcolors(sc: SparkContext): Unit = {

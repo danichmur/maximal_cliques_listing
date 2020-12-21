@@ -28,26 +28,8 @@ object Refrigerator {
   var result : List[IntArrayList] = List.empty
 
   var size : Int = 0
-  var kcores : immutable.Map[Int, Int] = _
 
   var start : Long = 0
-
-  val isVertexOk: (Int, MainGraph[_, _]) => Boolean = (u : Int, graph : MainGraph[_, _]) => {
-    val rigthU = graph.getVertex(u).getVertexOriginalId
-    kcores.get(rigthU) match {
-      /*
-         Every clique of size k + 1 is a subgraph of the k-core because
-         right before the algorithm removes the first node from the clique,
-         that node has a degree of at least k
-
-         All vertices in a clique of size k have core numbers of at least k−1
-       */
-      case Some(v_kcore) => v_kcore >= size
-      case None => false
-    }
-  }
-
-
 
   def addFrozenData(pFrozenData: FrozenDataHolder): Unit = {
     if (pFrozenData.getSize <= 2) { //get rid of single edges

@@ -312,10 +312,8 @@ case class Fractoid[S <: Subgraph : ClassTag](
     graph.getVertex(id).getVertexOriginalId
   }
 
-  def setNew(explorationSteps: Int,
-             kcore_map: immutable.Map[Int, Int]): Unit = {
+  def setNew(explorationSteps: Int): Unit = {
     Refrigerator.size = explorationSteps
-    Refrigerator.kcores = kcore_map
   }
 
   def explore(n: Int): Fractoid[S] = {
