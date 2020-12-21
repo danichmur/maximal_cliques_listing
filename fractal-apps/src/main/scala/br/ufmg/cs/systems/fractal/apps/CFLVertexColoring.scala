@@ -114,11 +114,12 @@ object CFLVertexColoring extends Logging {
     case _ => 0
   }
 
-  def getColors(sc: SparkContext, path : String): Unit = {
+  def countAndSetColors(sc: SparkContext, path : String): Unit = {
     val startTimeMillis = System.currentTimeMillis()
 
     val lines = sc.textFile(path).map(line2edge).collect()
     val c = KClistEnumerator.getColors2(lines)
+    logWarning("Max color: " + c.max.toString)
     //logWarning(c.deep.mkString(", "))
     KClistEnumerator.setColors(c)
     val endTimeMillis = System.currentTimeMillis()

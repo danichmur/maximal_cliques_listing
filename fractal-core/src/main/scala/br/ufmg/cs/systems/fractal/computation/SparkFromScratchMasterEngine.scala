@@ -1,6 +1,7 @@
 package br.ufmg.cs.systems.fractal.computation
 
-import java.io.{BufferedInputStream, BufferedOutputStream, FileInputStream, FileOutputStream}
+import java.io.{BufferedInputStream, BufferedOutputStream, File, FileInputStream, FileOutputStream}
+import java.nio.file.{Files, Paths}
 import java.util
 import java.util.Arrays
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -334,368 +335,281 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           logWarning("START COMPUTING")
           val start00 = System.currentTimeMillis
 
-          var ret = processCompute(iter, c)
+          val ret = processCompute(iter, c)
           logWarning(s"time: ${(System.currentTimeMillis - start00) / 1000.0}s")
 
-          val newVersion = true
+          val computationTree = new ComputationTree[S](c, null)
 
-          if (newVersion) {
-            //---------------------------------------------------------------------------------------------------------
-            val computationTree = new ComputationTree[S](c, null)
+          for (r <- ret.getResults) {
+            computationTree.adopt(new ComputationTree[S](computationTree, c.nextComputation(), r))
+          }
 
-            for (r <- ret.getResults) {
-              computationTree.adopt(new ComputationTree[S](computationTree, c.nextComputation(), r))
-            }
+          var result = computationTree
+          var done = false
+          var repeat = false
+          val N = c.getConfig.getInteger("top_N", 1)
+          while (!done) {
 
-            var result = computationTree
-            var done = false
-            var repeat = false
-            while (!done) {
+            val start0 = System.currentTimeMillis
 
-              val start0 = System.currentTimeMillis
-
-              if (result != null && !repeat) {
-                //visit first available child if possible
-                val child = result.visit()
-                if (child == null) {
-                  //well, we have no children, go back to parent
-                  result.killChildren()
-                  var back = true
-                  while (result.hasParent && back) {
-                    result = result.parent
-                    val child0 = result.visit()
-                    if (child0 != null) {
-                      result = child0
-                      back = false
-                    }
+            if (result != null && !repeat) {
+              //visit first available child if possible
+              val child = result.visit()
+              if (child == null) {
+                //well, we have no children, go back to parent
+                result.killChildren()
+                var back = true
+                while (result.hasParent && back) {
+                  result = result.parent
+                  val child0 = result.visit()
+                  if (child0 != null) {
+                    result = child0
+                    back = false
                   }
-                  if (result.parent == null) {
-                    //oh, this is init parent, we have visited all nodes
-                    done = true
-                  }
-                } else {
-                  //we go deeper, result is child
-                  result = child
                 }
-              }
-              if (!done) {
-
-                if (result.head.serializedFileIter != "") {
-                  val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
-                  val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
-                  result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
-
-                  val subBis = new BufferedInputStream(new FileInputStream(result.head.serializedFileSub))
-                  val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
-                  result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
+                if (result.parent == null) {
+                  //oh, this is init parent, we have visited all nodes
+                  done = true
                 }
-                val subgraph = result.head.subgraph
-                if (subgraph.getVertices.size() == Refrigerator.size) {
-
-//                  Refrigerator.result = new IntArrayList() :: Refrigerator.result
-                  Refrigerator.result = subgraph.getVertices :: Refrigerator.result
-                  //TODO: pass top N
-                  if (Refrigerator.result.size > 3) {
-                    done = true
-
-                  }
-                  logWarning("FOUND!")
-                  repeat = false
-                } else {
-                  val nextComp = result.nextComputation
-                  nextComp.getSubgraphEnumerator.set(nextComp, subgraph)
-                  nextComp.getSubgraphEnumerator.setForFrozen(result.head.enumerator.getDag)
-
-                  subgraph.nextExtensionLevel()
-                  val results = nextComp.compute(subgraph).getResults
-                  subgraph.previousExtensionLevel()
-                  if (results.length == 1) {
-                    result.setHead(results.get(0))
-                    result.updateId()
-                    result.updateLevel()
-                    // so here is the logic:
-                    // on the previous iteration we checked all candidates, if the results.length == 1, we have only one candidate
-                    // so, starting from this point we only need to find first candidate from next candidates
-                    // because the number may only falling
-                    nextComp.getSubgraphEnumerator.setGetFirstCandidate(true)
-                    repeat = true
-                  } else {
-                    for (orphan <- results) {
-                      val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
-                      result.adopt(c)
-                    }
-                    repeat = false
-                  }
-
-
-
-
-                  val stepTime = System.currentTimeMillis - start0
-//                  logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
-                  if (result.level % 100 == 0) {
-                    logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
-                      s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
-                  }
-                  extend_time_all = 0
-                  ser_time_all = 0
-                  colors_all = 0
-
-                }
+              } else {
+                //we go deeper, result is child
+                result = child
               }
             }
-            //---------------------------------------------------------------------------------------------------------
-          } else {
-            var done = false
+            if (!done) {
 
-            while (!(ret.isEmpty || done)) {
-              var compute0 = 0L
-              var compute1 = 0L
-              var nextComputation = c.nextComputation()
-              val newRet = new ComputationResults[S]
+              if (result.head.serializedFileIter != "") {
+                val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
+                val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
+                result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
 
-
-              val start0 = System.currentTimeMillis
-              compute0 = System.currentTimeMillis
-
-              extend_time_all = 0
-              ser_time_all = 0
-              colors_all = 0
-              val a = ret.getStep
-
-              for (result <- ret.getResults) {
-                val subgraph = result.subgraph
-
-                nextComputation.getSubgraphEnumerator.set(nextComputation, subgraph)
-                nextComputation.getSubgraphEnumerator.setForFrozen(result.enumerator.getDag)
+                val subBis = new BufferedInputStream(new FileInputStream(result.head.serializedFileSub))
+                val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
+                result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
+              }
+              val subgraph = result.head.subgraph
+              if (subgraph.getVertices.size() == Refrigerator.size) {
+                Refrigerator.result = subgraph.getVertices :: Refrigerator.result
+                if (Refrigerator.result.size >= N) {
+                  done = true
+                }
+                logWarning("FOUND!")
+                repeat = false
+              } else {
+                val nextComp = result.nextComputation
+                nextComp.getSubgraphEnumerator.set(nextComp, subgraph)
+                nextComp.getSubgraphEnumerator.setForFrozen(result.head.enumerator.getDag)
 
                 subgraph.nextExtensionLevel()
-                val c = nextComputation.compute(subgraph)
-                newRet.addAll(c)
+                val results = nextComp.compute(subgraph).getResults
                 subgraph.previousExtensionLevel()
-              }
 
-              compute1 = System.currentTimeMillis - compute0
-
-              nextComputation = nextComputation.nextComputation
-              ret = newRet
-
-              if (ret.getStep == Refrigerator.size) {
-                //we are done here
-                for (result <- ret.getResults) {
-                  Refrigerator.result = result.subgraph.getVertices :: Refrigerator.result
+                if (results.length == 1) {
+                  result.setHead(results.get(0))
+                  result.updateId()
+                  result.updateLevel()
+                  // so here is the logic:
+                  // on the previous iteration we checked all candidates, if the results.length == 1, we have only one candidate
+                  // so, starting from this point we only need to find first candidate from next candidates
+                  // because the number may only falling
+                  nextComp.getSubgraphEnumerator.setGetFirstCandidate(true)
+                  repeat = true
+                } else {
+                  for (orphan <- results) {
+                    val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
+                    result.adopt(c)
+                  }
+                  repeat = false
                 }
-                done = true
-              } else {
+
 
                 val stepTime = System.currentTimeMillis - start0
-//                                logWarning("STEP " + ret.getStep + "; subs: " + ret.getResults.size + s"; time: ${stepTime / 1000.0}s; " +
-//                                  s"useful work: ${(extend_time_all + ser_time_all) / 1000.0}s; colors: ${colors_all / 1000.0}s;")
-//                s"extend_time: ${extend_time_all / 1000.0}s; ser_time: ${ser_time_all / 1000.0}s")
+                //logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
+                if (result.level % 100 == 0) {
+                  logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
+                    s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
+                }
                 extend_time_all = 0
                 ser_time_all = 0
                 colors_all = 0
+
               }
             }
           }
 
-          var elapsed = System.currentTimeMillis - start
-          logInfo(s"WorkStealingMode internal=${config.internalWsEnabled()}" +
-            s" external=${config.externalWsEnabled()}")
-          logInfo(s"InitialComputation step=${c.getStep}" +
+        var elapsed = System.currentTimeMillis - start
+        logInfo(s"WorkStealingMode internal=${config.internalWsEnabled()}" +
+          s" external=${config.externalWsEnabled()}")
+        logInfo(s"InitialComputation step=${c.getStep}" +
+          s" partitionId=${c.getPartitionId} took ${elapsed} ms")
+
+        if (false && config.wsEnabled()) {
+          // setup work-stealing system
+          start = System.currentTimeMillis
+
+          def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+            processCompute(iter, c)
+          }
+
+          val gtagExecutorActor = execEngine.slaveActorRef
+          workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
+          workStealingSys.workStealingCompute(c)
+          elapsed = System.currentTimeMillis - start
+
+          logInfo(s"WorkStealingComputation step=${c.getStep}" +
             s" partitionId=${c.getPartitionId} took ${elapsed} ms")
-
-          if (false && config.wsEnabled()) {
-            // setup work-stealing system
-            start = System.currentTimeMillis
-
-            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
-              processCompute(iter, c)
-            }
-
-            val gtagExecutorActor = execEngine.slaveActorRef
-            workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
-            workStealingSys.workStealingCompute(c)
-            elapsed = System.currentTimeMillis - start
-
-            logInfo(s"WorkStealingComputation step=${c.getStep}" +
-              s" partitionId=${c.getPartitionId} took ${elapsed} ms")
-          }
-
-          ret
-        } else {
-          processCompute(iter, c)
         }
+        ret
       }
 
-      var extend_time_all = 0L
-      var ser_time_all = 0L
-      var colors_all = 0L
-
-      //todo
-      var files_counter = 0L
-
-      private def hasNextComputation(iter: SubgraphEnumerator[S],
-                                     c: Computation[S],
-                                     nextComp: Computation[S]): ComputationResults[S] = {
-        var cou = 1
-
-        val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
-        val size = Refrigerator.size - 1
-        val states = KClistEnumerator.getColors(graph)
-        val result = new ComputationResults[S]
-
-        val getOnlyFirst = iter.isGetFirstCandidate
-        var found = false
-        while (iter.hasNext && !(found && getOnlyFirst)) {
-          val u = iter.nextElem()
-
-          val prefixSize = iter.getSubgraph.getVertices.size()
-          val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
-
-          val (uniqColors, elapsed) = FractalSparkRunner.time {
-            val dag = iter.getDag
-
-            val (size, arr) = if (!dag.containsKey(u)) {
-              val neighbours = graph.getVertexNeighbours(u)
-              (neighbours.size, neighbours.toIntArray)
-            } else {
-              val dagNeighbours = dag.get(u)
-              (dagNeighbours.size, dagNeighbours.getBackingArray)
-            }
-
-            val neigh_colors = ListBuffer.empty[Int]
-            neigh_colors += states(graph.getVertex(u).getVertexOriginalId)
-            //neigh_colors += states(u)
-            var i = 0
-            while (i < size) {
-              neigh_colors += states(graph.getVertex(arr(i)).getVertexOriginalId)
-              //neigh_colors += states(arr(i))
-              i += 1
-            }
-            neigh_colors.distinct.size
-          }
-
-          colors_all += elapsed
-
-          //k-clique contains k colors
-          //val uniqColors = neigh_colors.distinct.size
-
-          // size = cliqueSize - 1
-          // maxPossibleSize = 0 is the first computation
-
-          val isSizeOk = !(maxPossibleSize == 0 && uniqColors < size || maxPossibleSize != 0 && maxPossibleSize < size)
-
-          if (isSizeOk && uniqColors + prefixSize > size) {
-            if (prefixSize == 0) {
-              Refrigerator.graphCounter += 1
-            }
-            //logWarning(cou.toString)
-            cou += 1
-            val time0 = System.currentTimeMillis
-            val next_iter = iter.extend(u)
-            val extend_time = System.currentTimeMillis - time0
-            extend_time_all += extend_time
-
-            if (!getOnlyFirst) {
-              val ser = System.currentTimeMillis
-
-              val bytes = SparkConfiguration.serialize(next_iter)
-              val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
-
-              //val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
-              //val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
-
-              val data = "/Users/danielmuraveyko/maximal_cliques_listing/my_data/"
-
-              val iterName = data + files_counter.toString + "_iter"
-              val subName = data + files_counter.toString + "_subgraph"
-              files_counter += 1
-
-              import java.io.FileOutputStream
-              try {
-                val fos = new FileOutputStream(iterName)
-                try fos.write(bytes)
-                finally if (fos != null) fos.close()
-              }
-              try {
-                val fos = new FileOutputStream(subName)
-                try fos.write(subgrap_bytes)
-                finally if (fos != null) fos.close()
-              }
-
-              val ser_time = System.currentTimeMillis - ser
-              ser_time_all += ser_time
-
-              //result.add(new_iter, new_subgraph)
-              result.add(iterName, subName)
-              logWarning("DUMP TO FILE! " + cou.toString +
-                s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
-              )
-            } else {
-              iter.shouldRemoveLastWord = false
-              result.add(iter, iter.getSubgraph)
-              //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
-            }
-            found = true
-          }
-        }
-        result
+      else
+      {
+        processCompute(iter, c)
       }
+    }
 
-      private def lastComputation(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
-        val WRITE_TO_FILE = false
+    var extend_time_all = 0L
+    var ser_time_all = 0L
+    var colors_all = 0L
 
-        var addWords = 0L
-        var subgraphsGenerated = 0L
+    private def hasNextComputation(iter: SubgraphEnumerator[S], c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
+      var cou = 1
 
-        val wordIds = iter.getWordIds
-        val result = new ComputationResults[S]
+      val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
+      val size = Refrigerator.size - 1
+      val states = KClistEnumerator.getColors(graph)
+      val result = new ComputationResults[S]
+      val data_path = c.getConfig.getString("dump_path", "")
+      val getOnlyFirst = iter.isGetFirstCandidate
+      var found = false
+      while (iter.hasNext && !(found && getOnlyFirst)) {
+        val u = iter.nextElem()
 
-        if (wordIds != null) {
-          KClistEnumerator.count += 1
+        val prefixSize = iter.getSubgraph.getVertices.size()
+        val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
 
-          if (WRITE_TO_FILE) {
-            lastStepConsumer.set(iter.getSubgraph, c)
-            wordIds.forEach(lastStepConsumer)
-            addWords += lastStepConsumer.addWords
-            subgraphsGenerated += lastStepConsumer.subgraphsGenerated
+        val (uniqColors, elapsed) = FractalSparkRunner.time {
+          val dag = iter.getDag
+
+          val (size, arr) = if (!dag.containsKey(u)) {
+            val neighbours = graph.getVertexNeighbours(u)
+            (neighbours.size, neighbours.toIntArray)
           } else {
-            val bytes = SparkConfiguration.serialize(iter)
-            val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
-
-            val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
-            val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
-
-            for (w <- wordIds) {
-              new_subgraph.addWord(w)
-            }
-            result.add(new_iter, new_subgraph)
+            val dagNeighbours = dag.get(u)
+            (dagNeighbours.size, dagNeighbours.getBackingArray)
           }
-        } else {
-          val subgraph = iter.next()
-          addWords += 1
-          if (c.filter(subgraph)) {
-            subgraphsGenerated += 1
-            c.process(subgraph)
+
+          val neigh_colors = ListBuffer.empty[Int]
+          neigh_colors += states(graph.getVertex(u).getVertexOriginalId)
+          var i = 0
+          while (i < size) {
+            neigh_colors += states(graph.getVertex(arr(i)).getVertexOriginalId)
+            i += 1
           }
-          //TODO?
-          //result.add?
+          //k-clique contains k colors
+          neigh_colors.distinct.size
         }
 
-        result
+        colors_all += elapsed
+
+        val isFirstComputation = maxPossibleSize == 0
+        val isSizeOk = !(isFirstComputation && uniqColors < size || !isFirstComputation && maxPossibleSize < size)
+
+        if (isSizeOk && uniqColors + prefixSize > size) {
+          if (prefixSize == 0) {
+            Refrigerator.graphCounter += 1
+          }
+          cou += 1
+          val time0 = System.currentTimeMillis
+          val next_iter = iter.extend(u)
+          val extend_time = System.currentTimeMillis - time0
+          extend_time_all += extend_time
+
+          if (!getOnlyFirst) {
+            val ser = System.currentTimeMillis
+
+            val iterB = SparkConfiguration.serialize(next_iter)
+            val subB = SparkConfiguration.serialize(iter.getSubgraph)
+            val iterFile = File.createTempFile("iter", "", new File(data_path))
+            val subFile = File.createTempFile("sub", "", new File(data_path))
+            Files.write(Paths.get(iterFile.getCanonicalPath), iterB)
+            Files.write(Paths.get(subFile.getCanonicalPath), subB)
+
+            val ser_time = System.currentTimeMillis - ser
+            ser_time_all += ser_time
+
+            result.add(iterFile.getCanonicalPath, subFile.getCanonicalPath)
+            logWarning("DUMP TO FILE! " + cou.toString +
+              s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+            )
+          } else {
+            iter.shouldRemoveLastWord = false
+            result.add(iter, iter.getSubgraph)
+            //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
+          }
+          found = true
+        }
+      }
+      result
+    }
+
+    private def lastComputation(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+      val WRITE_TO_FILE = false
+
+      var addWords = 0L
+      var subgraphsGenerated = 0L
+
+      val wordIds = iter.getWordIds
+      val result = new ComputationResults[S]
+
+      if (wordIds != null) {
+        KClistEnumerator.count += 1
+
+        if (WRITE_TO_FILE) {
+          lastStepConsumer.set(iter.getSubgraph, c)
+          wordIds.forEach(lastStepConsumer)
+          addWords += lastStepConsumer.addWords
+          subgraphsGenerated += lastStepConsumer.subgraphsGenerated
+        } else {
+          val bytes = SparkConfiguration.serialize(iter)
+          val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
+
+          val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
+          val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
+
+          for (w <- wordIds) {
+            new_subgraph.addWord(w)
+          }
+          //TODO: save it!
+          result.add(new_iter, new_subgraph)
+        }
+      } else {
+        val subgraph = iter.next()
+        addWords += 1
+        if (c.filter(subgraph)) {
+          subgraphsGenerated += 1
+          c.process(subgraph)
+        }
       }
 
-      private def processCompute(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
-        val nextComp = c.nextComputation()
+      result
+    }
 
-        if (nextComp != null) {
-          hasNextComputation(iter, c, nextComp)
-        } else {
-          lastComputation(iter, c)
-        }
+    private def processCompute(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S]
+
+    =
+    {
+      val nextComp = c.nextComputation()
+
+      if (nextComp != null) {
+        hasNextComputation(iter, c, nextComp)
+      } else {
+        lastComputation(iter, c)
       }
     }
   }
+}
+
 }
 
 class LastStepConsumer[E <: Subgraph] extends IntConsumer {
