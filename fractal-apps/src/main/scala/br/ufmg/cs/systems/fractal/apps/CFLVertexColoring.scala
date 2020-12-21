@@ -2,7 +2,7 @@ package br.ufmg.cs.systems.fractal
 
 
 import br.ufmg.cs.systems.fractal.GraphColoring.logWarning
-import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator
+import br.ufmg.cs.systems.fractal.gmlib.clique.{GraphInner, KClistEnumerator}
 import br.ufmg.cs.systems.fractal.util.Logging
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx.{Edge, EdgeTriplet, Graph, Pregel, VertexId}
@@ -11,8 +11,12 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.storage.StorageLevel
 import org.graphframes.GraphFrame
 
+import scala.io.Source
 import scala.reflect.ClassTag
 import scala.util.Random
+import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
+
 
 /**
  * A pregel implementation of a randomized graph coloring algorithm.
@@ -103,10 +107,9 @@ object CFLVertexColoring extends Logging {
     findInvalidEdges(graph, maxNumColors).size == 0
   }
 
-  def line2edge(string: String): br.ufmg.cs.systems.fractal.graph.Edge[Integer] = { //Edge[Long] = {
+  def line2edge(string: String): GraphInner.Edge1 = {
     val array = string.split(" ")
-    //Edge(array(0).toLong, array(1).toLong, 0)
-    new br.ufmg.cs.systems.fractal.graph.Edge[Integer](array(0).toInt, array(1).toInt);
+    new GraphInner.Edge1(array(0).toInt, array(1).toInt);
   }
 
   def toInt(x: Any): Int = x match {
@@ -117,8 +120,22 @@ object CFLVertexColoring extends Logging {
   def countAndSetColors(sc: SparkContext, path : String): Unit = {
     val startTimeMillis = System.currentTimeMillis()
 
-    val lines = sc.textFile(path).map(line2edge).collect()
-    val c = KClistEnumerator.getColors2(lines)
+    val list = ListBuffer.empty[GraphInner.Edge1]
+    val source = Source.fromFile(path)
+    var N = 0
+    try {
+      for (line <- source.getLines) {
+        val edge = line2edge(line)
+        if (edge.source > N) N = edge.source
+        if (edge.dest > N) N = edge.dest
+
+        list += edge
+      }
+    } finally {
+      source.close()
+    }
+
+    val c = KClistEnumerator.getColors2(list.asJava, N + 1)
     logWarning("Max color: " + c.max.toString)
     //logWarning(c.deep.mkString(", "))
     KClistEnumerator.setColors(c)

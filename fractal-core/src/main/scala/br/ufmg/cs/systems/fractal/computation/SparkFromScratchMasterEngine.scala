@@ -477,7 +477,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
       val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
       val size = Refrigerator.size - 1
-      val states = KClistEnumerator.getColors(graph)
+      val states = KClistEnumerator.getColors()
       val result = new ComputationResults[S]
       val data_path = c.getConfig.getString("dump_path", "")
       val getOnlyFirst = iter.isGetFirstCandidate
