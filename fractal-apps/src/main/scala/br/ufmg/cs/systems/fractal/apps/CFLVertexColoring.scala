@@ -2,6 +2,7 @@ package br.ufmg.cs.systems.fractal
 
 
 import br.ufmg.cs.systems.fractal.GraphColoring.logWarning
+import br.ufmg.cs.systems.fractal.apps.MaximalCliquesListing.logWarning
 import br.ufmg.cs.systems.fractal.gmlib.clique.{GraphInner, KClistEnumerator}
 import br.ufmg.cs.systems.fractal.util.Logging
 import org.apache.spark.SparkContext
@@ -117,30 +118,28 @@ object CFLVertexColoring extends Logging {
     case _ => 0
   }
 
-  def countAndSetColors(path : String): (Array[Integer], Int, Long) = {
+  def countAndSetColors(path : String): Long = {
     val startTimeMillis = System.currentTimeMillis()
-
-    val list = ListBuffer.empty[GraphInner.Edge1]
     val source = Source.fromFile(path)
-    var N = 0
+
+    val graphInner = new GraphInner()
+    //Reading: 70 s
     try {
       for (line <- source.getLines) {
-        val edge = line2edge(line)
-        if (edge.source > N) N = edge.source
-        if (edge.dest > N) N = edge.dest
-
-        list += edge
+        graphInner.addEdge(line2edge(line))
       }
     } finally {
       source.close()
     }
 
-    val c = KClistEnumerator.getColors2(list.asJava, N + 1)
+    println(s"Reading: ${(System.currentTimeMillis() - startTimeMillis) / 1000} s")
+
+    KClistEnumerator.countAndSetColors(graphInner)
 
     val endTimeMillis = System.currentTimeMillis()
     val durationSeconds = (endTimeMillis - startTimeMillis) / 1000
 
-    (c, c.max, durationSeconds)
+    durationSeconds
   }
 
   def setcolors(sc: SparkContext): Unit = {
