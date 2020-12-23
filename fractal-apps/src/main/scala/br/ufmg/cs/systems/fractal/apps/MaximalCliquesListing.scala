@@ -63,14 +63,14 @@ object MaximalCliquesListing extends Logging {
 
     //TODO kcore? for 4800 max color is 4801
 
-   //  val (s, graphPath) = (2400, "/Users/danielmuraveyko/Desktop/els2/for_kcore_600")
-    // val (s, graphPath) = (3600, "/Users/danielmuraveyko/Desktop/els2/for_kcore_900")
-    val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
-    // val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els/for_kcore_0")
-    // val (s, graphPath) = (1040, "/Users/danielmuraveyko/Desktop/els2/for_kcore_260")
+    //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els/for_kcore_0")
     //val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els/for_kcore_4")
-   //  val (s, graphPath) = (1200, "/Users/danielmuraveyko/Desktop/els2/for_kcore_300")
-   // val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
+    //val (s, graphPath) = (1200, "/Users/danielmuraveyko/Desktop/els2/for_kcore_300")
+    //val (s, graphPath) = (3600, "/Users/danielmuraveyko/Desktop/els2/for_kcore_900")
+    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
+    val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
+    //val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
+    //val (s, graphPath) = (22, "/Users/danielmuraveyko/Downloads/brock400-4/brock400-4.mtx")
 
     val colorTime = CFLVertexColoring.countAndSetColors(graphPath)
 

@@ -28,6 +28,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     transient private DagCleaner dagCleaner;
     public static int count = 0;
     public static int size = 1;
+    public static boolean writeSizes = false;
 
     private static List<Integer> colors = null;
     private static List<Integer> neigboursColorsCount = null;
@@ -67,8 +68,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         }
     }
 
-    public KClistEnumerator() {
-    }
+    public KClistEnumerator() {}
 
     @Override
     public void init(Configuration<S> config) {
@@ -165,8 +165,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             if (orderedVertices2 == null) {
                 continue;
             }
-            Utils.sintersect(orderedVertices, orderedVertices2,
-                    0, orderedVertices.size(),
+            Utils.smartChoiceIntersect(orderedVertices, orderedVertices2,
+                    i + 1, orderedVertices.size(),
                     0, orderedVertices2.size(), target);
             dag.put(v, target);
         }
@@ -197,7 +197,13 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
                 dag.put(v, IntArrayListPool.instance().createObject());
             }
         }
+        if (writeSizes) {
 
+            System.out.println("neighborhood.size: " + orderedVertices.size());
+        }
+
+        long time = System.currentTimeMillis();
+        long lens = 0;
         IntObjCursor<IntArrayList> cur = dag.cursor();
         while (cur.moveNext()) {
             int v = cur.key();
@@ -206,13 +212,19 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             if (neighborhood == null) continue;
 
             IntArrayList orderedVertices2 = neighborhood.getOrderedVertices();
-
+            lens += orderedVertices2.size();
             for (int j = 0; j < orderedVertices2.size(); ++j) {
                 int w = orderedVertices2.getUnchecked(j);
                 if (/*neigboursColorsCount.get(v) >= size &&*/ dag.containsKey(w)) {
                     cur.value().add(w);
                 }
             }
+        }
+
+        if (writeSizes) {
+            System.out.println("cur.value().add: " + (System.currentTimeMillis() - time) / 1000.0 + "s");
+
+            System.out.println("lens: " + lens);
         }
     }
 

@@ -123,7 +123,6 @@ object CFLVertexColoring extends Logging {
     val source = Source.fromFile(path)
 
     val graphInner = new GraphInner()
-    //Reading: 70 s
     try {
       for (line <- source.getLines) {
         graphInner.addEdge(line2edge(line))

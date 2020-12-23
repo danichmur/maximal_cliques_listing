@@ -158,6 +158,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
    }
 
    public synchronized SubgraphEnumerator<S> forkEnumerator(Computation<S> computation) {
+      System.out.println("forkEnumerator");
       // create new consumer, adding just enough to verify if there is still
       // work in it
       SubgraphEnumerator<S> iter = computation.
