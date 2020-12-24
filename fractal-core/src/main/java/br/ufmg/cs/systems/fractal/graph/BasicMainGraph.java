@@ -84,7 +84,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
 
    @Override
    public int undoVertexFilter() {
-      LOG.warn("removedVertices " + removedVertices);
+      //LOG.info("removedVertices " + removedVertices);
       removedVertices.forEach(vertexReset);
       //LOG.info("removedNeighborhoods " + removedNeighborhoods);
       removedNeighborhoods.forEach(neighborhoodReset);
@@ -95,7 +95,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
    
    @Override
    public int undoEdgeFilter() {
-      LOG.warn("removedEdges" + removedEdges);
+      //LOG.info("removedEdges" + removedEdges);
       removedEdges.forEach(edgeReset);
       removedEdges.clear();
       return 0;
@@ -311,9 +311,15 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
       this.isEdgeLabelled = isEdgeLabelled;
       this.isMultiGraph = isMultiGraph;
 
-      //if (LOG.isInfoEnabled()) {
-         LOG.warn("Done initializing graph, elapsed=" + (System.currentTimeMillis() - start) / 1000 + " s");
-      //}
+      if (LOG.isInfoEnabled()) {
+//         LOG.info("Done initializing graph," +
+//               " id=" + id +
+//               " name=" + name +
+//               " isEdgeLabelled=" + isEdgeLabelled +
+//               " isMultiGraph=" + isMultiGraph +
+//               " class=" + getClass() +
+//               " elapsed=" + (System.currentTimeMillis() - start) + " ms");
+      }
    }
 
    public void init(Object path) throws IOException {

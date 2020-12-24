@@ -93,11 +93,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
    */
   lazy val next: Boolean = {
 
+
     logInfo(s"${this} Computation starting from ${stepRDD}," +
       s", StorageLevel=${stepRDD.getStorageLevel}")
 
-    //-------------------------------------сс----------------------------------------------
-    val ccBuildStart = System.currentTimeMillis()
     // save original container, i.e., without parents' computations
     val originalContainer = config.computationContainer[S]
     // we will contruct the pipeline in this var
@@ -155,22 +154,22 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
     // NOTE: We need this extra initAggregations because this communication
     // strategy adds a 'previous_enumeration' aggregation
     cc.initAggregations(this.config)
-    logInfo(s"cc building took ${(System.currentTimeMillis - ccBuildStart) / 1000}s")
-    //-------------------------------------------------------------------------------------
 
     val initStart = System.currentTimeMillis
-
     val _configBc = configBc
     val mainGraphWasRead = this.config.isMainGraphRead
-
     stepRDD.mapPartitions { iter =>
       _configBc.value.initializeWithTag(isMaster = false)
       iter
     }.foreachPartition(_ => {})
 
-    logWarning(s"stepRDD.init took ${(System.currentTimeMillis - initStart) / 1000}s")
+    val initElapsed = System.currentTimeMillis - initStart
+
+    logInfo(s"Initialization took ${initElapsed} ms")
 
     if (mainGraphWasRead) {
+      val superstepStart = System.currentTimeMillis
+
       val enumerationStart = System.currentTimeMillis
 
       val _aggAccums = aggAccums
@@ -185,7 +184,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       //execEngines.persist(DISK_ONLY)
       execEngines.foreachPartition(_ => {})
 
-      logInfo(s"Enumeration step=${step} took ${(System.currentTimeMillis - enumerationStart) / 1000}s")
+      val enumerationElapsed = System.currentTimeMillis - enumerationStart
+
+      logInfo(s"Enumeration step=${step} took ${enumerationElapsed} ms")
 
       /** [1] We extract and aggregate the *aggregations* globally.
        */
@@ -230,7 +231,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       masterActorRef ! Reset
 
       val superstepFinish = System.currentTimeMillis
-      logInfo(s"Superstep $step finished in ${(System.currentTimeMillis - enumerationStart) / 1000}s")
+      logInfo(
+        s"Superstep $step finished in ${superstepFinish - superstepStart} ms"
+      )
     }
 
     // make sure we maintain the engine's original state
@@ -598,7 +601,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       result
     }
 
-    private def processCompute(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+    private def processCompute(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S]
+
+    =
+    {
       val nextComp = c.nextComputation()
 
       if (nextComp != null) {

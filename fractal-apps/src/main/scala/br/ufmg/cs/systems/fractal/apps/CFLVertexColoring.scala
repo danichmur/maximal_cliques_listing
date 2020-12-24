@@ -4,10 +4,9 @@ package br.ufmg.cs.systems.fractal
 import br.ufmg.cs.systems.fractal.GraphColoring.logWarning
 import br.ufmg.cs.systems.fractal.apps.MaximalCliquesListing.logWarning
 import br.ufmg.cs.systems.fractal.gmlib.clique.{GraphInner, KClistEnumerator}
-import br.ufmg.cs.systems.fractal.graph.{Edge, LightBasicMainGraph, Vertex}
 import br.ufmg.cs.systems.fractal.util.Logging
 import org.apache.spark.SparkContext
-import org.apache.spark.graphx.{EdgeTriplet, Graph, Pregel, VertexId}
+import org.apache.spark.graphx.{Edge, EdgeTriplet, Graph, Pregel, VertexId}
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.functions.col
 import org.apache.spark.storage.StorageLevel
@@ -106,12 +105,12 @@ object CFLVertexColoring extends Logging {
   }
 
   def verify (graph : Graph[Color, _], maxNumColors : Long) : Boolean = {
-    findInvalidEdges(graph, maxNumColors).isEmpty
+    findInvalidEdges(graph, maxNumColors).size == 0
   }
 
-  def line2edge(string: String): Edge[_] = {
+  def line2edge(string: String): GraphInner.Edge1 = {
     val array = string.split(" ")
-    new Edge(array(0).toInt, array(1).toInt)
+    new GraphInner.Edge1(array(0).toInt, array(1).toInt);
   }
 
   def toInt(x: Any): Int = x match {
@@ -123,7 +122,7 @@ object CFLVertexColoring extends Logging {
     val startTimeMillis = System.currentTimeMillis()
     val source = Source.fromFile(path)
 
-    val graphInner = new LightBasicMainGraph[Vertex, Edge]()
+    val graphInner = new GraphInner()
     try {
       for (line <- source.getLines) {
         graphInner.addEdge(line2edge(line))

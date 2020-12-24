@@ -68,8 +68,8 @@ object MaximalCliquesListing extends Logging {
     //val (s, graphPath) = (1200, "/Users/danielmuraveyko/Desktop/els2/for_kcore_300")
     //val (s, graphPath) = (3600, "/Users/danielmuraveyko/Desktop/els2/for_kcore_900")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
-    //val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
-    val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
+    val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
+    //val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
     //val (s, graphPath) = (22, "/Users/danielmuraveyko/Downloads/brock400-4/brock400-4.mtx")
 
     val colorTime = CFLVertexColoring.countAndSetColors(graphPath)
@@ -80,8 +80,9 @@ object MaximalCliquesListing extends Logging {
     val fc = new FractalContext(sc)
 
     logWarning(sc.uiWebUrl.getOrElse(""))
+    logWarning(s"Color time: $colorTime s")
 
-    val fractalGraph = fc.textFile(graphPath, graphClass = "br.ufmg.cs.systems.fractal.graph.LightBasicMainGraph")
+    val fractalGraph = fc.textFile(graphPath, graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph")
 
     //TODO: if a graph can be colored with k colors, then the maximum clique in this graph must be smaller or equal to k
     //var explorationSteps = kcore.head
