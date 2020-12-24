@@ -4,7 +4,7 @@ import java.util
 import java.util.HashSet
 
 import br.ufmg.cs.systems.fractal.gmlib.clique.FrozenDataHolderOld
-import br.ufmg.cs.systems.fractal.graph.MainGraph
+import br.ufmg.cs.systems.fractal.graph.{Edge, LightBasicMainGraph, MainGraph, Vertex}
 import br.ufmg.cs.systems.fractal.subgraph.Subgraph
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
 import br.ufmg.cs.systems.fractal.util.{SynchronizedDynamicGraphV2, SynchronizedNodeBuilder}
@@ -30,6 +30,8 @@ object Refrigerator {
   var size : Int = 0
 
   var start : Long = 0
+
+  var graph: LightBasicMainGraph[Vertex[Integer], Edge[Integer]] = null
 
   def addFrozenData(pFrozenData: FrozenDataHolder): Unit = {
     if (pFrozenData.getSize <= 2) { //get rid of single edges

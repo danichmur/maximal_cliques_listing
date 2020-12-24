@@ -46,6 +46,10 @@ public class LightBasicMainGraph<V,E> implements MainGraph<V,E> {
         adjList = new HashMap<>();
     }
 
+    public LightBasicMainGraph() {
+        init();
+    }
+
     @Override
     public void reset() {}
 
@@ -71,12 +75,12 @@ public class LightBasicMainGraph<V,E> implements MainGraph<V,E> {
 
     @Override
     public int getVertexId(int vertexIdx) {
-        return 0;
+        return vertexIdx;
     }
 
     @Override
     public int getNumberVertices() {
-        return 0;
+        return N;
     }
 
     @Override
@@ -130,6 +134,10 @@ public class LightBasicMainGraph<V,E> implements MainGraph<V,E> {
     public VertexNeighbourhood getVertexNeighbourhood(int vertexId) {
         //TODO
         return null;
+    }
+
+    public List<Integer> getVertexNeighboursList(int vertexId) {
+        return adjList.getOrDefault(vertexId, new ArrayList<>());
     }
 
     @Override

@@ -3,6 +3,7 @@ package br.ufmg.cs.systems.fractal
 
 import br.ufmg.cs.systems.fractal.GraphColoring.logWarning
 import br.ufmg.cs.systems.fractal.apps.MaximalCliquesListing.logWarning
+import br.ufmg.cs.systems.fractal.computation.Refrigerator
 import br.ufmg.cs.systems.fractal.gmlib.clique.{GraphInner, KClistEnumerator}
 import br.ufmg.cs.systems.fractal.graph.{Edge, LightBasicMainGraph, Vertex}
 import br.ufmg.cs.systems.fractal.util.Logging
@@ -109,7 +110,7 @@ object CFLVertexColoring extends Logging {
     findInvalidEdges(graph, maxNumColors).isEmpty
   }
 
-  def line2edge(string: String): Edge[_] = {
+  def line2edge(string: String): Edge[Integer] = {
     val array = string.split(" ")
     new Edge(array(0).toInt, array(1).toInt)
   }
@@ -123,7 +124,7 @@ object CFLVertexColoring extends Logging {
     val startTimeMillis = System.currentTimeMillis()
     val source = Source.fromFile(path)
 
-    val graphInner = new LightBasicMainGraph[Vertex, Edge]()
+    val graphInner = new LightBasicMainGraph[Vertex[Integer], Edge[Integer]]()
     try {
       for (line <- source.getLines) {
         graphInner.addEdge(line2edge(line))
@@ -135,6 +136,7 @@ object CFLVertexColoring extends Logging {
     println(s"Reading: ${(System.currentTimeMillis() - startTimeMillis) / 1000} s")
 
     KClistEnumerator.countAndSetColors(graphInner)
+    Refrigerator.graph = graphInner
 
     val endTimeMillis = System.currentTimeMillis()
     val durationSeconds = (endTimeMillis - startTimeMillis) / 1000

@@ -163,15 +163,15 @@ public class VertexInducedSubgraph extends BasicSubgraph {
 
       int addedEdges = 0;
 
-      // For each vertex (except the last one added)
-      for (int i = 0; i < positionAdded; ++i) {
-         int existingVertexId = vertices.getUnchecked(i);
-
-         updateEdgesConsumer.reset();
-         configuration.getMainGraph().forEachEdgeId(existingVertexId,
-               newVertexId, updateEdgesConsumer);
-         addedEdges += updateEdgesConsumer.getNumAdded();
-      }
+//      // For each vertex (except the last one added)
+//      for (int i = 0; i < positionAdded; ++i) {
+//         int existingVertexId = vertices.getUnchecked(i);
+//
+//         updateEdgesConsumer.reset();
+//         configuration.getMainGraph().forEachEdgeId(existingVertexId,
+//               newVertexId, updateEdgesConsumer);
+//         addedEdges += updateEdgesConsumer.getNumAdded();
+//      }
 
       numEdgesAddedWithWord.add(addedEdges);
 

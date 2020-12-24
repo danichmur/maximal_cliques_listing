@@ -679,6 +679,7 @@ case class VComputationContainer[E <: VertexInducedSubgraph](
     case None =>
       (config: Configuration[E], c: Computation[E]) => {
         super.init(config)
+        super.setMainGraph(Refrigerator.graph)
       }
   }
 

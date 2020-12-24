@@ -413,7 +413,7 @@ public class Configuration<O extends Subgraph> implements Serializable {
     public SubgraphEnumerator<O> createSubgraphEnumerator(boolean bypass) {
         SubgraphEnumerator<O> senum;
         if (!bypass) {
-            senum = new KClistEnumerator<>();//(SubgraphEnumerator<O>) ReflectionUtils.newInstance(subgraphEnumClass);
+            senum = new KClistEnumerator<>();
         } else {
             senum = (SubgraphEnumerator<O>) ReflectionUtils.newInstance(
                     br.ufmg.cs.systems.fractal.computation.BypassSubgraphEnumerator.class);
@@ -442,8 +442,8 @@ public class Configuration<O extends Subgraph> implements Serializable {
     }
 
     public boolean isMainGraphRead() {
-       return mainGraph != null && (mainGraph.getNumberVertices() > 0 ||
-          mainGraph.getNumberEdges() > 0);
+       return true;
+       //return mainGraph != null && (mainGraph.getNumberVertices() > 0 || mainGraph.getNumberEdges() > 0);
     }
 
     public MainGraph createGraph() {

@@ -42,6 +42,10 @@ public abstract class BasicComputation<S extends Subgraph>
         return mainGraph;
     }
 
+    public void setMainGraph(MainGraph mainGraph) {
+      this.mainGraph = mainGraph;
+    }
+
     @Override
     public Configuration getConfig() {
         return configuration;

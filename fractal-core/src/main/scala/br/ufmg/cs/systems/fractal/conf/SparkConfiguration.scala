@@ -444,6 +444,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
    * TODO: generalize the initialization in the superclass Configuration
    */
   override def initialize(isMaster: Boolean = false): Unit = synchronized {
+
     logInfo(s"Initializing config, id=${id} config=${this}" +
       s" mainGraph=${getMainGraph()} isMainGraphRead=${isMainGraphRead()}" +
       s" isMaster=${isMaster} activeConfigs=${Configuration.activeConfigs}")
@@ -453,7 +454,8 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
       initializeInstance(!isMaster)
     }
 
-    if (getMainGraph == null || !isMainGraphRead()) {
+    if (getMainGraph == null && !isMainGraphRead()) {
+      //if (getMainGraph == null || !isMainGraphRead()) {
       val graph = createGraph()
       setMainGraph(graph)
       logInfo(s"Graph created, configId=${id} graph=${graph}")

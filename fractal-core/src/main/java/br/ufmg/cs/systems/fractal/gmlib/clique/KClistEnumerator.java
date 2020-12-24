@@ -2,9 +2,7 @@ package br.ufmg.cs.systems.fractal.gmlib.clique;
 
 import br.ufmg.cs.systems.fractal.computation.SubgraphEnumerator;
 import br.ufmg.cs.systems.fractal.conf.Configuration;
-import br.ufmg.cs.systems.fractal.graph.LightBasicMainGraph;
-import br.ufmg.cs.systems.fractal.graph.MainGraph;
-import br.ufmg.cs.systems.fractal.graph.VertexNeighbourhood;
+import br.ufmg.cs.systems.fractal.graph.*;
 import br.ufmg.cs.systems.fractal.subgraph.Subgraph;
 import br.ufmg.cs.systems.fractal.util.Utils;
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
@@ -30,9 +28,10 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     public static int count = 0;
     public static int size = 1;
     public static boolean writeSizes = false;
+    public static LightBasicMainGraph<Vertex<Integer>, Edge<Integer>> graph = null;
 
     private static List<Integer> colors = null;
-    private static List<Integer> neigboursColorsCount = null;
+    //private static List<Integer> neigboursColorsCount = null;
 
     public static List<Integer> getColors() {
         return colors;
@@ -81,20 +80,20 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     //TODO: WHY DO I NEED THIS????
     public void rebuildState() {
         dag.clear();
-        if (subgraph.getNumWords() == 0) return;
-        IntArrayList vertices = subgraph.getVertices();
-        IntObjMap<IntArrayList> currentDag = HashIntObjMaps.newMutableMap();
-        IntObjMap<IntArrayList> aux;
-
-        extendFromGraph(computation.getConfig().getMainGraph(), dag, vertices.get(0));
-
-        for (int i = 1; i < vertices.size(); ++i) {
-            aux = currentDag;
-            currentDag = dag;
-            dag = aux;
-            dag.clear();
-            extendFromDag(computation.getConfig().getMainGraph(), currentDag, dag, vertices.get(i));
-        }
+//        if (subgraph.getNumWords() == 0) return;
+//        IntArrayList vertices = subgraph.getVertices();
+//        IntObjMap<IntArrayList> currentDag = HashIntObjMaps.newMutableMap();
+//        IntObjMap<IntArrayList> aux;
+//
+//        //extendFromGraph(computation.getConfig().getMainGraph(), dag, vertices.get(0));
+//
+//        for (int i = 1; i < vertices.size(); ++i) {
+//            aux = currentDag;
+//            currentDag = dag;
+//            dag = aux;
+//            dag.clear();
+//            extendFromDag(computation.getConfig().getMainGraph(), currentDag, dag, vertices.get(i));
+//        }
     }
 
     @Override
@@ -118,9 +117,9 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         nextEnumerator.clearDag();
 
         if (subgraph.getNumWords() == 0) {
-            extendFromGraph(subgraph.getConfig().getMainGraph(), nextEnumerator.dag, u);
+            extendFromGraph(nextEnumerator.dag, u);
         } else {
-            extendFromDag(subgraph.getConfig().getMainGraph(), dag, nextEnumerator.dag, u);
+            extendFromDag(dag, nextEnumerator.dag, u);
         }
 
 
@@ -146,7 +145,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
      *
      * @param u vertex being added to the current subgraph
      */
-    public void extendFromDag(MainGraph graph, IntObjMap<IntArrayList> currentDag,
+    public void extendFromDag(IntObjMap<IntArrayList> currentDag,
                               IntObjMap<IntArrayList> dag, int u) {
 
         count++;
@@ -178,29 +177,30 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
      *
      * @param u first vertex being added to the current subgraph
      */
-    private static void extendFromGraph(MainGraph graph, IntObjMap<IntArrayList> dag, int u) {
+    private static void extendFromGraph(IntObjMap<IntArrayList> dag, int u) {
         count++;
 
-        VertexNeighbourhood neighborhood = graph.getVertexNeighbourhood(u);
+        //VertexNeighbourhood neighborhood = graph.getVertexNeighbourhood(u);
 
-        if (neighborhood == null) {
+        List<Integer> neighborhood = graph.getVertexNeighboursList(u);
+
+        if (neighborhood.size() == 0) {
             return;
         }
 
-        IntArrayList orderedVertices = neighborhood.getOrderedVertices();
+        //IntArrayList orderedVertices = neighborhood.getOrderedVertices();
 
-        dag.ensureCapacity(orderedVertices.size());
+        dag.ensureCapacity(neighborhood.size());
 
-        for (int i = 0; i < orderedVertices.size(); ++i) {
-            int v = orderedVertices.getUnchecked(i);
-            //todo
-            if (true || neigboursColorsCount.get(v) >= size) {
-                dag.put(v, IntArrayListPool.instance().createObject());
-            }
+        for (int i = 0; i < neighborhood.size(); ++i) {
+            //int v = orderedVertices.getUnchecked(i);
+            int v = neighborhood.get(i);
+            dag.put(v, IntArrayListPool.instance().createObject());
         }
-        if (writeSizes) {
 
-            System.out.println("neighborhood.size: " + orderedVertices.size());
+        if (writeSizes) {
+            //System.out.println("neighborhood.size: " + orderedVertices.size());
+            System.out.println("neighborhood.size: " + neighborhood.size());
         }
 
         long time = System.currentTimeMillis();
@@ -208,15 +208,18 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         IntObjCursor<IntArrayList> cur = dag.cursor();
         while (cur.moveNext()) {
             int v = cur.key();
-            neighborhood = graph.getVertexNeighbourhood(v);
+            neighborhood = graph.getVertexNeighboursList(v);
 
-            if (neighborhood == null) continue;
+            if (neighborhood.size() == 0) {
+                continue;
+            }
 
-            IntArrayList orderedVertices2 = neighborhood.getOrderedVertices();
-            lens += orderedVertices2.size();
-            for (int j = 0; j < orderedVertices2.size(); ++j) {
-                int w = orderedVertices2.getUnchecked(j);
-                if (/*neigboursColorsCount.get(v) >= size &&*/ dag.containsKey(w)) {
+            //IntArrayList orderedVertices2 = neighborhood.getOrderedVertices();
+            lens += neighborhood.size();
+            for (int j = 0; j < neighborhood.size(); ++j) {
+                //int w = orderedVertices2.getUnchecked(j);
+                int w = neighborhood.get(j);
+                if (dag.containsKey(w)) {
                     cur.value().add(w);
                 }
             }
@@ -275,14 +278,14 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             }
             result.set(u, color);
         }
-        neigboursColorsCount = new ArrayList<>(Collections.nCopies(N, 0));
-        for (int u = 0; u < N; u++) {
-            Set<Integer> assigned = new TreeSet<>();
-            for (int i : graph.adjList.get(u)) {
-                assigned.add(result.get(i));
-            }
-            neigboursColorsCount.set(u, assigned.size());
-        }
+//        neigboursColorsCount = new ArrayList<>(Collections.nCopies(N, 0));
+//        for (int u = 0; u < N; u++) {
+//            Set<Integer> assigned = new TreeSet<>();
+//            for (int i : graph.adjList.get(u)) {
+//                assigned.add(result.get(i));
+//            }
+//            neigboursColorsCount.set(u, assigned.size());
+//        }
 
 
         System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");
@@ -290,11 +293,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         return result;
     }
 
-    static Map<Integer, List<Integer>> getAdjList() {
-        return new HashMap<>();
-    }
-
-    public static void countAndSetColors(LightBasicMainGraph graph) {
+    public static void countAndSetColors(LightBasicMainGraph<Vertex<Integer>, Edge<Integer>> graph) {
         System.out.println("Start coloring");
         long time = System.currentTimeMillis();
 
