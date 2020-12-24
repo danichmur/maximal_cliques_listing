@@ -82,9 +82,6 @@ case class Fractoid[S <: Subgraph : ClassTag](
    */
   private var masterEngineOpt: Option[SparkMasterEngine[S]] = None
 
-  private val size = config.getInteger("cliquesize", 1)
-
-  private val graph = config.getMainGraph[MainGraph[_, _]]()
 
   private def masterEngine: SparkMasterEngine[S] = synchronized {
     masterEngineOpt match {
@@ -110,7 +107,7 @@ case class Fractoid[S <: Subgraph : ClassTag](
         // logInfo (s"Computing ${this}. Engine: ${_masterEngine}")
         _masterEngine.next
 
-        _masterEngine.finalizeComputation
+        _masterEngine.finalizeComputation()
         masterEngineOpt = Some(_masterEngine)
         _masterEngine
 
@@ -120,9 +117,7 @@ case class Fractoid[S <: Subgraph : ClassTag](
   }
 
   def compute(): Map[String, Long] = {
-    val m = masterEngine
-    val n = m
-    m.aggAccums.map { case (k, v) => (k, v.value.longValue) }
+    masterEngine.aggAccums.map { case (k, v) => (k, v.value.longValue) }
   }
 
   def numValidSubgraphs(): Long = {
@@ -130,8 +125,7 @@ case class Fractoid[S <: Subgraph : ClassTag](
     compute().
       filter { case (k, v) => k.contains(prefix) }.
       map { case (k, v) => (k.stripPrefix(s"${prefix}_").toInt, v) }.
-      toArray.
-      sortBy { case (k, v) => k }.last._2
+      toArray.maxBy { case (k, v) => k }._2
   }
 
   /**
@@ -317,6 +311,8 @@ case class Fractoid[S <: Subgraph : ClassTag](
   }
 
   def explore(n: Int): Fractoid[S] = {
+    val time = System.currentTimeMillis
+
     var currResult = this
     var results: List[Fractoid[S]] = List(currResult)
     while (currResult.parentOpt.isDefined) {
@@ -326,27 +322,21 @@ case class Fractoid[S <: Subgraph : ClassTag](
 
     currResult = this
 
-    val startTag = System.currentTimeMillis
-    val standartFractal = false
 
     var i = 0
-    if (standartFractal) {
-      while (i < n) {
-        results.foreach { r => currResult = currResult.handleNextResult(r) }
-        i += 1
-      }
-    } else {
-      val container = getComputationContainer[S]
-      var nextContainer = container.shallowCopy()
-      val first = nextContainer
-      while (i < n) {
-        val container0 = getComputationContainer[S].shallowCopy()
-        nextContainer.nextComputationOpt = Some(container0)
-        nextContainer = container0
-        i += 1
-      }
-      currResult = this.copy(config = config.withNewComputation(first))
+
+    val container = getComputationContainer[S]
+    var nextContainer = container.shallowCopy()
+    val first = nextContainer
+    while (i < n) {
+      val container0 = getComputationContainer[S].shallowCopy()
+      nextContainer.nextComputationOpt = Some(container0)
+      nextContainer = container0
+      i += 1
     }
+    currResult = this.copy(config = config.withNewComputation(first))
+
+    logWarning(s"explore: ${(System.currentTimeMillis() - time) / 1000.0}s")
 
     currResult
   }

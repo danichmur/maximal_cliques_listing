@@ -2,6 +2,7 @@ package br.ufmg.cs.systems.fractal.gmlib.clique;
 
 import br.ufmg.cs.systems.fractal.computation.SubgraphEnumerator;
 import br.ufmg.cs.systems.fractal.conf.Configuration;
+import br.ufmg.cs.systems.fractal.graph.LightBasicMainGraph;
 import br.ufmg.cs.systems.fractal.graph.MainGraph;
 import br.ufmg.cs.systems.fractal.graph.VertexNeighbourhood;
 import br.ufmg.cs.systems.fractal.subgraph.Subgraph;
@@ -289,13 +290,18 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         return result;
     }
 
-    public static void countAndSetColors(GraphInner graph) {
+    static Map<Integer, List<Integer>> getAdjList() {
+        return new HashMap<>();
+    }
+
+    public static void countAndSetColors(LightBasicMainGraph graph) {
         System.out.println("Start coloring");
         long time = System.currentTimeMillis();
 
         colors = new ArrayList<>(Collections.nCopies(graph.N + 1, 0));
 
-        for (Map.Entry<Integer, List<Integer>> entry : graph.adjListNew.entrySet()) {
+        for (Map.Entry<Integer, List<Integer>> entry : graph.getAdjList().entrySet()) {
+
             Set<Integer> assigned = new TreeSet<>();
             for (int i : entry.getValue()) {
                 if (colors.get(i) != 0) {
