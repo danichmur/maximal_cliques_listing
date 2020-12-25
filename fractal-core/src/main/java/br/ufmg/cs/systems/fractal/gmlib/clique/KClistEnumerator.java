@@ -192,14 +192,13 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
         for (int i = 0; i < orderedVertices.size(); ++i) {
             int v = orderedVertices.getUnchecked(i);
-            //todo
-            if (true || neigboursColorsCount.get(v) >= size) {
+            if (neigboursColorsCount.get(v) >= size - 1) {
                 dag.put(v, IntArrayListPool.instance().createObject());
             }
         }
         if (writeSizes) {
 
-            System.out.println("neighborhood.size: " + orderedVertices.size());
+            System.out.println("neighborhood.size: " + orderedVertices.size() + " dag.size: " + dag.keySet().size());
         }
 
         long time = System.currentTimeMillis();
@@ -215,7 +214,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             lens += orderedVertices2.size();
             for (int j = 0; j < orderedVertices2.size(); ++j) {
                 int w = orderedVertices2.getUnchecked(j);
-                if (/*neigboursColorsCount.get(v) >= size &&*/ dag.containsKey(w)) {
+                if (neigboursColorsCount.get(v) >= size - 1 && dag.containsKey(w)) {
                     cur.value().add(w);
                 }
             }
@@ -310,6 +309,15 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
                 color++;
             }
             colors.set(entry.getKey(), color);
+        }
+
+        neigboursColorsCount = new ArrayList<>(Collections.nCopies(graph.N + 1, 0));
+        for (int u = 0; u < graph.N + 1; u++) {
+            Set<Integer> assigned = new TreeSet<>();
+            for (int i : graph.adjListNew.get(u)) {
+                assigned.add(colors.get(i));
+            }
+            neigboursColorsCount.set(u, assigned.size());
         }
 
         System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");

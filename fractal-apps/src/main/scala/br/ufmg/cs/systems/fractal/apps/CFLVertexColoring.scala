@@ -135,13 +135,15 @@ object CFLVertexColoring extends Logging {
 
     KClistEnumerator.countAndSetColors(graphInner)
 
+    //val colors = KClistEnumerator.getColors
+
     val endTimeMillis = System.currentTimeMillis()
     val durationSeconds = (endTimeMillis - startTimeMillis) / 1000
 
     durationSeconds
   }
 
-  def setcolors(sc: SparkContext): Unit = {
+  def setColors(sc: SparkContext): Unit = {
 
     val line = sc.textFile("/Users/danielmuraveyko/Desktop/colors.txt").collect()(0)
     val colors0 = line.split(", ")

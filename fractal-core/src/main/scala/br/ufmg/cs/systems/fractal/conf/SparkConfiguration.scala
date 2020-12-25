@@ -352,19 +352,19 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
 
       val elapsedTag = System.currentTimeMillis - startTag
 
-      if (ret > 0) {
-        logInfo (s"GraphTagging took ${elapsedTag} return=${ret}")
-      }
+      //if (ret > 0) {
+        logWarning (s"GraphTagging took ${elapsedTag} return=${ret}")
+      //}
 
       val startFilter = System.currentTimeMillis
 
-      //if (!confs.contains("vfilter")) {
+      if (!confs.contains("vfilter")) {
         getMainGraph[MainGraph[_,_]].undoVertexFilter()
-      //}
+      }
 
-      //if (!confs.contains("efilter")) {
+      if (!confs.contains("efilter")) {
         getMainGraph[MainGraph[_,_]].undoEdgeFilter()
-      //}
+      }
 
       def filterVertices[V,E](graph: MainGraph[V,E],
           vpred: Predicate[_]): Int = {
@@ -395,12 +395,12 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
       }
 
       val elapsedFilter = System.currentTimeMillis - startFilter
-      System.gc()
+      //System.gc()
 
-      if (removedVertices + removedEdges > 0) {
-        logInfo (s"GraphFiltering took ${elapsedFilter} ms" +
+      //if (removedVertices + removedEdges > 0) {
+        logWarning(s"GraphFiltering took ${elapsedFilter} ms" +
           s" removedVertices=${removedVertices} removedEdges=${removedEdges}")
-      }
+      //}
 
       if (ret + removedVertices + removedEdges > 0) {
         getMainGraph[MainGraph[_,_]].buildSortedNeighborhood()
@@ -413,10 +413,10 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
     initialize(isMaster)
     if (!tagApplied) {
       val start = System.currentTimeMillis
-      val ret = getMainGraph[MainGraph[_,_]].filter(vtag, etag)
-      System.gc()
+      //val ret = getMainGraph[MainGraph[_,_]].filter(vtag, etag)
+      //System.gc()
       val elapsed = System.currentTimeMillis - start
-      logInfo (s"GraphTagging took ${elapsed} ms. Return: ${ret}")
+      logWarning( s"GraphTagging took ${elapsed} ms")
       tagApplied = true
     }
   }
@@ -546,7 +546,10 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
     getMainGraph[MainGraph[_,_]].synchronized {
       if (!isMainGraphRead) {
         logInfo ("MainGraph is empty, gonna try reading it")
+        val initStart = System.currentTimeMillis
         readMainGraph()
+        logWarning(s"readMainGraph took ${(System.currentTimeMillis - initStart) / 1000}s")
+
         graphRead = true
       }
     }
