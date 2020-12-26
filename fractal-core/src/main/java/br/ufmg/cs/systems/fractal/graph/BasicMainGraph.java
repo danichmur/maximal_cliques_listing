@@ -37,7 +37,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
    protected int id = newGraphId();
 
    private static final int INITIAL_ARRAY_SIZE = 4096;
-   
+
    protected IntIntMap vertexIdMap =
       HashIntIntMaps.getDefaultFactory().withDefaultValue(-1).newMutableMap();
 
@@ -609,33 +609,16 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
 
    @Override
    public MainGraph addEdge(Edge edge) {
-      // Assuming input graph contains all edges but we treat it as undirected
-      // TODO: What if input only contains one of the edges? Should we enforce
-      // this via a sanity check?
-      // TODO: Handle this when directed graphs
-
-      //TODO DM: DO WE NEED THIS???
-//      if (this.getVertex(edge.getSourceId()).getVertexOriginalId() > this.getVertex(edge.getDestinationId()).getVertexOriginalId()) {
-//         System.out.println("whoupse " + edge);
-//         return this;
+//      if (edge.getEdgeId() == -1) {
+//         edge.setEdgeId(numEdges);
+//         ensureCanStoreNewEdge();
+//         ++numEdges;
+//      } else if (edge.getEdgeId() > numEdges) {
+//         throw new RuntimeException("Sanity check, edge with id " + edge.getEdgeId() + " added at position " + numEdges);
 //      }
 
-      if (edge.getEdgeId() == -1) {
-         edge.setEdgeId(numEdges);
-      }
-      //else if (edge.getEdgeId() != numEdges) {
-      //   throw new RuntimeException("Sanity check, edge with id " + edge.getEdgeId() + " added at position " + numEdges);
-      //}
-
-      if (edge.getEdgeId() == numEdges) {
-         ensureCanStoreNewEdge();
-         ++numEdges;
-      } else if (edge.getEdgeId() > numEdges) {
-         throw new RuntimeException("Sanity check, edge with id " + edge.getEdgeId() + " added at position " + numEdges);
-      }
-
       ensureCanStoreUpToVertex(Math.max(edge.getSourceId(), edge.getDestinationId()));
-      edgeIndexF[edge.getEdgeId()] = edge;
+      //edgeIndexF[edge.getEdgeId()] = edge;
 
       try {
          VertexNeighbourhood vertexNeighbourhood = vertexNeighborhoods[edge.getSourceId()];

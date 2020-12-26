@@ -32,16 +32,18 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
 
    @Override
    protected void readFromInputStream(InputStream is) {
+      long start = System.currentTimeMillis();
       try {
          BufferedReader reader = new BufferedReader(
                new InputStreamReader(new BOMInputStream(is)));
 
          String line = reader.readLine();
-
+         System.out.println("readFromInputStream");
+         int i = 0;
          while (line != null) {
-            if (line.startsWith("#")) {
-               line = reader.readLine();
-               continue;
+            i++;
+            if (i % 1000000 == 0) {
+               //System.out.println(i + " " + (System.currentTimeMillis() - start) / 1000.0 + "s");
             }
 
             StringTokenizer tokenizer = new StringTokenizer(line);
@@ -58,7 +60,7 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
          }
 
          reader.close();
-         buildSortedNeighborhood();
+         //buildSortedNeighborhood();
       } catch (IOException e) {
          throw new RuntimeException(e);
       }
