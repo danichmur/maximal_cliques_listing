@@ -352,9 +352,9 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
 
       val elapsedTag = System.currentTimeMillis - startTag
 
-      //if (ret > 0) {
+      if (ret > 0) {
         logWarning (s"GraphTagging took ${elapsedTag} return=${ret}")
-      //}
+      }
 
       val startFilter = System.currentTimeMillis
 
@@ -397,10 +397,10 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
       val elapsedFilter = System.currentTimeMillis - startFilter
       //System.gc()
 
-      //if (removedVertices + removedEdges > 0) {
+      if (removedVertices + removedEdges > 0) {
         logWarning(s"GraphFiltering took ${elapsedFilter} ms" +
           s" removedVertices=${removedVertices} removedEdges=${removedEdges}")
-      //}
+      }
 
       if (ret + removedVertices + removedEdges > 0) {
         getMainGraph[MainGraph[_,_]].buildSortedNeighborhood()

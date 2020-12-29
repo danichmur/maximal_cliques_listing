@@ -1,6 +1,7 @@
 package br.ufmg.cs.systems.fractal.graph;
 
 import br.ufmg.cs.systems.fractal.util.collection.AtomicBitSetArray;
+import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.collection.ReclaimableIntCollection;
 import com.koloboke.collect.IntCollection;
 import java.util.function.IntConsumer;
@@ -42,7 +43,7 @@ public interface MainGraph<V,E> {
 
     VertexNeighbourhood getVertexNeighbourhood(int vertexId);
 
-    IntCollection getVertexNeighbours(int vertexId);
+    IntSet getVertexNeighbours(int vertexId);
 
     boolean isEdgeLabelled();
 

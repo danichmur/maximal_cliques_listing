@@ -42,14 +42,13 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
          int i = 0;
          while (line != null) {
             i++;
-            if (i % 1000000 == 0) {
-               //System.out.println(i + " " + (System.currentTimeMillis() - start) / 1000.0 + "s");
+            if (i % 10000000 == 0) {
+               System.out.println(i + " " + (System.currentTimeMillis() - start) / 1000.0 + "s");
             }
 
             StringTokenizer tokenizer = new StringTokenizer(line);
 
-            Vertex vertex = parseVertex(tokenizer);
-            int vertexId = vertex.getVertexId();
+            int vertexId = Integer.parseInt(tokenizer.nextToken());
 
             while (tokenizer.hasMoreTokens()) {
                Edge edge = parseEdge(tokenizer, vertexId);
@@ -58,7 +57,6 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
 
             line = reader.readLine();
          }
-
          reader.close();
          //buildSortedNeighborhood();
       } catch (IOException e) {
@@ -66,40 +64,10 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
       }
    }
 
-   @Override
-   protected Vertex parseVertex(StringTokenizer tokenizer) {
-      int vertexId = Integer.parseInt(tokenizer.nextToken());
-
-      int vertexIdx = vertexIdMap.get(vertexId);
-      if (vertexIdx == -1) {
-         vertexIdx = vertexIdMap.size();
-         vertexIdMap.put(vertexId, vertexIdx);
-         Vertex vertex = createVertex(vertexIdx, vertexId, 1);
-         addVertex(vertex);
-         return vertex;
-      } else {
-         return vertexIndexF[vertexIdx];
-      }
-   }
 
    @Override
    protected Edge parseEdge(StringTokenizer tokenizer, int vertexId) {
-      Vertex neighborVertex = parseVertex(tokenizer);
-      int neighborId = neighborVertex.getVertexId();
-
-      if (!isEdgeLabelled) {
-         int from, to;
-        // if (vertexId < neighborId) {
-            from = vertexId;
-            to = neighborId;
-//         } else {
-//            from = neighborId;
-//            to = vertexId;
-//         }
-         return createEdge(from, to);
-      } else {
-         throw new RuntimeException(
-               "Edge label is not allowed in edge list format");
-      }
+      int neighborId = Integer.parseInt(tokenizer.nextToken());
+      return createEdge(vertexId, neighborId);
    }
 }

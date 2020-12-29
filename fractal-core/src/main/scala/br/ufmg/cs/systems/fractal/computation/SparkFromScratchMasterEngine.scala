@@ -477,7 +477,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
       val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
       val size = Refrigerator.size - 1
-      val states = KClistEnumerator.getColors
+      val states = KClistEnumerator.getColors(graph)
       val result = new ComputationResults[S]
       val data_path = c.getConfig.getString("dump_path", "")
       val getOnlyFirst = iter.isGetFirstCandidate
@@ -485,6 +485,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
       while (iter.hasNext && !(found && getOnlyFirst)) {
         val u = iter.nextElem()
+        //logWarning(u.toString)
 
         val prefixSize = iter.getSubgraph.getVertices.size()
         val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
@@ -492,21 +493,24 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val (uniqColors, elapsed) = FractalSparkRunner.time {
           val dag = iter.getDag
 
-          val (size, arr) = if (!dag.containsKey(u)) {
+          val neigh_colors = ListBuffer.empty[Int]
+          neigh_colors += states(u)
+
+          if (!dag.containsKey(u)) {
             val neighbours = graph.getVertexNeighbours(u)
-            (neighbours.size, neighbours.toIntArray)
+            val cursor = neighbours.getInternalSet.cursor()
+            while (cursor.moveNext()) {
+              neigh_colors += states(cursor.elem())
+            }
           } else {
             val dagNeighbours = dag.get(u)
-            (dagNeighbours.size, dagNeighbours.getBackingArray)
+            val cursor = dagNeighbours.cursor()
+            while (cursor.moveNext()) {
+              neigh_colors += states(cursor.elem())
+            }
           }
 
-          val neigh_colors = ListBuffer.empty[Int]
-          neigh_colors += states(graph.getVertex(u).getVertexOriginalId)
-          var i = 0
-          while (i < size) {
-            neigh_colors += states(graph.getVertex(arr(i)).getVertexOriginalId)
-            i += 1
-          }
+
           //k-clique contains k colors
           neigh_colors.distinct.size
         }

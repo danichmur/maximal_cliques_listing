@@ -72,9 +72,11 @@ object MaximalCliquesListing extends Logging {
     //val (s, graphPath) = (3600, "/Users/danielmuraveyko/Desktop/els2/for_kcore_900")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
     //val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
-    val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
+    //val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
+    val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
 
-    val colorTime = CFLVertexColoring.countAndSetColors(graphPath)
+    val time = System.currentTimeMillis()
+    //val colorTime = CFLVertexColoring.countAndSetColors(graphPath)
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -100,9 +102,6 @@ object MaximalCliquesListing extends Logging {
       cliques = cliques ++ original_cliques
       cliquesIdx = cliquesIdx ++ subgraphs
     }
-
-    val time = System.currentTimeMillis()
-    Refrigerator.start = time
 
     val topN = 1
     addCliques(s, topN)

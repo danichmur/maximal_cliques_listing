@@ -29,8 +29,6 @@ object Refrigerator {
 
   var size : Int = 0
 
-  var start : Long = 0
-
   def addFrozenData(pFrozenData: FrozenDataHolder): Unit = {
     if (pFrozenData.getSize <= 2) { //get rid of single edges
       return

@@ -2,19 +2,24 @@ package br.ufmg.cs.systems.fractal.graph;
 
 import br.ufmg.cs.systems.fractal.util.collection.AtomicBitSetArray;
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
+import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.collection.ReclaimableIntCollection;
+import br.ufmg.cs.systems.fractal.util.pool.HashIntSetPool;
 import br.ufmg.cs.systems.fractal.util.pool.IntSingletonPool;
 import com.koloboke.collect.IntCollection;
+import com.koloboke.collect.IntCursor;
 import com.koloboke.collect.map.IntIntCursor;
 import com.koloboke.collect.map.IntIntMap;
 import com.koloboke.collect.map.hash.HashIntIntMaps;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
+import com.koloboke.collect.set.hash.HashIntSet;
 import com.koloboke.function.IntIntConsumer;
 
 public class BasicVertexNeighbourhood implements VertexNeighbourhood, java.io.Serializable {
    // Key = neighbour vertex id, Value = edge id that connects owner of neighbourhood with Key
+   protected IntSet neighbourhood;
    protected IntIntMap neighbourhoodMap;
    protected IntIntMap removedNeighbourhoodMap;
    protected IntArrayList orderedVertices;
@@ -23,7 +28,8 @@ public class BasicVertexNeighbourhood implements VertexNeighbourhood, java.io.Se
    protected MainGraph graph;
 
    public BasicVertexNeighbourhood() {
-      this.neighbourhoodMap = HashIntIntMaps.getDefaultFactory().withDefaultValue(-1).newMutableMap();
+      this.neighbourhood = new IntSet();
+      this.neighbourhoodMap =HashIntIntMaps.getDefaultFactory().withDefaultValue(-1).newMutableMap();
       this.removedNeighbourhoodMap = HashIntIntMaps.getDefaultFactory().withDefaultValue(-1).newMutableMap();
    }
 
@@ -164,9 +170,10 @@ public class BasicVertexNeighbourhood implements VertexNeighbourhood, java.io.Se
       return neighbourhoodMap.size();
    }
 
+
    @Override
-   public IntCollection getNeighborVertices() {
-      return neighbourhoodMap.keySet();
+   public IntSet getNeighborVertices() {
+      return neighbourhood;
    }
 
    @Override
@@ -210,7 +217,19 @@ public class BasicVertexNeighbourhood implements VertexNeighbourhood, java.io.Se
       //   throw new RuntimeException(
       //         "This edge already exists and this is not a multi-vertex neighbourhood.");
       //}
-      neighbourhoodMap.put(neighbourVertexId, edgeId);
+      neighbourhood.add(neighbourVertexId);
+      //neighbourhoodMap.put(neighbourVertexId, -1);
+   }
+
+   @Override
+   public void removeLowers(int i) {
+      //IntIntCursor cur = neighbourhoodMap.cursor();
+      IntCursor cur = neighbourhood.getInternalSet().cursor();
+      while (cur.moveNext()) {
+         if (cur.elem() < i) {
+            cur.remove();
+         }
+      }
    }
 
    @Override

@@ -1,6 +1,7 @@
 package br.ufmg.cs.systems.fractal.graph;
 
 import br.ufmg.cs.systems.fractal.util.collection.AtomicBitSetArray;
+import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.collection.ReclaimableIntCollection;
 import com.koloboke.collect.IntCollection;
 import com.koloboke.collect.IntCursor;
@@ -42,7 +43,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
       HashIntIntMaps.getDefaultFactory().withDefaultValue(-1).newMutableMap();
 
    protected Vertex<V>[] vertexIndexF;
-   protected Edge<E>[] edgeIndexF;
+   protected Edge[] edgeIndexF;
    
    protected V[] vertexProperties;
    protected E[] edgeProperties;
@@ -241,7 +242,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
             removedVertices.put(vertexId, vertex);
          }
          synchronized (neighborhood) {
-            IntCursor cur = neighborhood.getNeighborVertices().cursor();
+            IntCursor cur = neighborhood.getNeighborVertices().getInternalSet().cursor();
             while (cur.moveNext()) {
                VertexNeighbourhood otherNeighborhood = vertexNeighborhoods[cur.elem()];
                IntCollection edgeIds = otherNeighborhood.getEdgesWithNeighbourVertex(vertexId);
@@ -346,7 +347,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
          throw new RuntimeException("Invalid path: " + path);
       }
 
-      buildSortedNeighborhood();      
+      //buildSortedNeighborhood();
 
       if (LOG.isInfoEnabled()) {
          LOG.info("Done reading graph," +
@@ -444,12 +445,6 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
    private void ensureCanStoreUpToVertex(int maxVertexId) {
       int targetSize = maxVertexId + 1;
 
-      if (vertexIndexF == null) {
-         vertexIndexF = new Vertex[Math.max(targetSize, INITIAL_ARRAY_SIZE)];
-      } else if (vertexIndexF.length < targetSize) {
-         vertexIndexF = Arrays.copyOf(vertexIndexF, getSizeWithPaddingWithoutOverflow(targetSize, vertexIndexF.length));
-      }
-
       if (vertexNeighborhoods == null) {
          vertexNeighborhoods = new VertexNeighbourhood[Math.max(targetSize, INITIAL_ARRAY_SIZE)];
       } else if (vertexNeighborhoods.length < targetSize) {
@@ -543,7 +538,8 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
 
    @Override
    public Vertex<V> getVertex(int vertexId) {
-      return vertexIndexF[vertexId];
+      return new Vertex<>(vertexId, -1);
+      //return vertexIndexF[vertexId];
    }
 
    @Override
@@ -609,44 +605,36 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
 
    @Override
    public MainGraph addEdge(Edge edge) {
-//      if (edge.getEdgeId() == -1) {
-//         edge.setEdgeId(numEdges);
-//         ensureCanStoreNewEdge();
-//         ++numEdges;
-//      } else if (edge.getEdgeId() > numEdges) {
-//         throw new RuntimeException("Sanity check, edge with id " + edge.getEdgeId() + " added at position " + numEdges);
-//      }
+
+      if (edge.getEdgeId() == -1) {
+         ++numEdges;
+      } else if (edge.getEdgeId() > numEdges) {
+         throw new RuntimeException("Sanity check, edge with id " + edge.getEdgeId() + " added at position " + numEdges);
+      }
 
       ensureCanStoreUpToVertex(Math.max(edge.getSourceId(), edge.getDestinationId()));
-      //edgeIndexF[edge.getEdgeId()] = edge;
 
       try {
          VertexNeighbourhood vertexNeighbourhood = vertexNeighborhoods[edge.getSourceId()];
-
          if (vertexNeighbourhood == null) {
             vertexNeighbourhood = createVertexNeighbourhood();
             vertexNeighborhoods[edge.getSourceId()] = vertexNeighbourhood;
          }
 
-         vertexNeighbourhood.addEdge(edge.getDestinationId(), edge.getEdgeId());
-      } catch (ArrayIndexOutOfBoundsException e) {
-         LOG.error("Tried to access index " + edge.getSourceId() + " of array with size " + vertexNeighborhoods.length);
-         LOG.error("vertexIndexF.length=" + vertexIndexF.length);
-         LOG.error("vertexNeighborhoods.length=" + vertexNeighborhoods.length);
-         throw e;
-      }
-
-      try {
-         VertexNeighbourhood vertexNeighbourhood = vertexNeighborhoods[edge.getDestinationId()];
-
-         if (vertexNeighbourhood == null) {
-            vertexNeighbourhood = createVertexNeighbourhood();
-            vertexNeighborhoods[edge.getDestinationId()] = vertexNeighbourhood;
+         VertexNeighbourhood vertexNeighbourhood1 = vertexNeighborhoods[edge.getDestinationId()];
+         if (vertexNeighbourhood1 == null) {
+            vertexNeighbourhood1 = createVertexNeighbourhood();
+            vertexNeighborhoods[edge.getDestinationId()] = vertexNeighbourhood1;
          }
 
-         //vertexNeighbourhood.addEdge(edge.getSourceId(), edge.getEdgeId());
+         if (numVertices < edge.getDestinationId()) numVertices = edge.getDestinationId();
+         if (numVertices < edge.getSourceId()) numVertices = edge.getSourceId();
+
+         vertexNeighbourhood.addEdge(edge.getDestinationId(), edge.getEdgeId());
+         vertexNeighbourhood1.addEdge(edge.getSourceId(), edge.getEdgeId());
+
       } catch (ArrayIndexOutOfBoundsException e) {
-         LOG.error("Tried to access index " + edge.getDestinationId() + " of array with size " + vertexNeighborhoods.length);
+         LOG.error("Tried to access index " + edge.getSourceId() + " of array with size " + vertexNeighborhoods.length);
          LOG.error("vertexIndexF.length=" + vertexIndexF.length);
          LOG.error("vertexNeighborhoods.length=" + vertexNeighborhoods.length);
          throw e;
@@ -897,11 +885,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
    }
 
    private VertexNeighbourhood createVertexNeighbourhood() {
-      if (!isMultiGraph) {
-         return new BasicVertexNeighbourhood(this);
-      } else {
-         return new MultiVertexNeighbourhood(this);
-      }
+      return new BasicVertexNeighbourhood(this);
    }
 
    @Override
@@ -910,7 +894,7 @@ public class BasicMainGraph<V,E> implements MainGraph<V,E> {
    }
 
    @Override
-   public IntCollection getVertexNeighbours(int vertexId) {
+   public IntSet getVertexNeighbours(int vertexId) {
       VertexNeighbourhood vertexNeighbourhood = getVertexNeighbourhood(vertexId);
 
       if (vertexNeighbourhood == null) {

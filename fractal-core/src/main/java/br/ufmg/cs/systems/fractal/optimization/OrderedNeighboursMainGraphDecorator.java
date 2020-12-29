@@ -6,6 +6,7 @@ import br.ufmg.cs.systems.fractal.graph.Vertex;
 import br.ufmg.cs.systems.fractal.graph.VertexNeighbourhood;
 import br.ufmg.cs.systems.fractal.util.collection.AtomicBitSetArray;
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
+import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.collection.ReclaimableIntCollection;
 import com.koloboke.collect.IntCollection;
 import java.util.function.IntConsumer;
@@ -16,22 +17,7 @@ public class OrderedNeighboursMainGraphDecorator implements OrderedNeighboursMai
 
     protected IntArrayList[] orderedNeighbours;
 
-    public OrderedNeighboursMainGraphDecorator(MainGraph underlyingMainGraph) {
-        this.underlyingMainGraph = underlyingMainGraph;
-
-        int numVertices = underlyingMainGraph.getNumberVertices();
-
-        orderedNeighbours = new IntArrayList[numVertices];
-
-        for (int i = 0; i < numVertices; ++i) {
-            IntCollection neighboursOfI = underlyingMainGraph.getVertexNeighbours(i);
-
-            if (neighboursOfI != null) {
-                orderedNeighbours[i] = new IntArrayList(neighboursOfI);
-                orderedNeighbours[i].sort();
-            }
-        }
-    }
+    public OrderedNeighboursMainGraphDecorator(MainGraph underlyingMainGraph) {}
 
     @Override
     public int getId() {
@@ -159,8 +145,8 @@ public class OrderedNeighboursMainGraphDecorator implements OrderedNeighboursMai
     }
 
     @Override
-    public IntCollection getVertexNeighbours(int vertexId) {
-        return orderedNeighbours[vertexId];
+    public IntSet getVertexNeighbours(int vertexId) {
+        return null; //orderedNeighbours[vertexId];
     }
 
     @Override
