@@ -68,8 +68,6 @@ object MaximalCliquesListing extends Logging {
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els/for_kcore_0")
     //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/00test.txt")
     //val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els/for_kcore_4")
-    //val (s, graphPath) = (1200, "/Users/danielmuraveyko/Desktop/els2/for_kcore_300")
-    //val (s, graphPath) = (3600, "/Users/danielmuraveyko/Desktop/els2/for_kcore_900")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
     //val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
     //val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
@@ -115,6 +113,8 @@ object MaximalCliquesListing extends Logging {
     }
 
     cleanDataFolder(dataPath)
+    val f = new java.io.File("map.dat")
+    f.delete()
 
     fc.stop()
     sc.stop()

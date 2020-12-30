@@ -482,10 +482,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       val data_path = c.getConfig.getString("dump_path", "")
       val getOnlyFirst = iter.isGetFirstCandidate
       var found = false
+      var extendNeeded = false
 
       while (iter.hasNext && !(found && getOnlyFirst)) {
         val u = iter.nextElem()
-        //logWarning(u.toString)
 
         val prefixSize = iter.getSubgraph.getVertices.size()
         val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
@@ -510,7 +510,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             }
           }
 
-
           //k-clique contains k colors
           neigh_colors.distinct.size
         }
@@ -527,36 +526,37 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           if (prefixSize == 0) {
             KClistEnumerator.writeSizes = true
             Refrigerator.graphCounter += 1
-
             logWarning("Vertex: " + u.toString + " num: " + cou.toString)
-
           }
-          val time0 = System.currentTimeMillis
-          val next_iter = iter.extend(u)
-          val extend_time = System.currentTimeMillis - time0
-          extend_time_all += extend_time
 
-          if (!getOnlyFirst) {
-            val ser = System.currentTimeMillis
+          if (extendNeeded) {
+            val time0 = System.currentTimeMillis
+            val next_iter = iter.extend(u)
+            val extend_time = System.currentTimeMillis - time0
+            extend_time_all += extend_time
 
-            val iterB = SparkConfiguration.serialize(next_iter)
-            val subB = SparkConfiguration.serialize(iter.getSubgraph)
-            val iterFile = File.createTempFile("iter", "", new File(data_path))
-            val subFile = File.createTempFile("sub", "", new File(data_path))
-            Files.write(Paths.get(iterFile.getCanonicalPath), iterB)
-            Files.write(Paths.get(subFile.getCanonicalPath), subB)
+            if (!getOnlyFirst) {
+              val ser = System.currentTimeMillis
 
-            val ser_time = System.currentTimeMillis - ser
-            ser_time_all += ser_time
+              val iterB = SparkConfiguration.serialize(next_iter)
+              val subB = SparkConfiguration.serialize(iter.getSubgraph)
+              val iterFile = File.createTempFile("iter", "", new File(data_path))
+              val subFile = File.createTempFile("sub", "", new File(data_path))
+              Files.write(Paths.get(iterFile.getCanonicalPath), iterB)
+              Files.write(Paths.get(subFile.getCanonicalPath), subB)
 
-            //result.add(iterFile.getCanonicalPath, subFile.getCanonicalPath)
-            logWarning("DUMP TO FILE! " + cou.toString +
-              s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
-            )
-          } else {
-            iter.shouldRemoveLastWord = false
-            result.add(iter, iter.getSubgraph)
-            //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
+              val ser_time = System.currentTimeMillis - ser
+              ser_time_all += ser_time
+
+              //result.add(iterFile.getCanonicalPath, subFile.getCanonicalPath)
+              logWarning("DUMP TO FILE! " + cou.toString +
+                s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+              )
+            } else {
+              iter.shouldRemoveLastWord = false
+              result.add(iter, iter.getSubgraph)
+              //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
+            }
           }
         }
       }

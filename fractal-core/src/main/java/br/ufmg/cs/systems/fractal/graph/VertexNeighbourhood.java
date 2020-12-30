@@ -41,5 +41,4 @@ public interface VertexNeighbourhood {
     
     IntArrayList getOrderedEdges();
 
-    void removeLowers(int i);
 }

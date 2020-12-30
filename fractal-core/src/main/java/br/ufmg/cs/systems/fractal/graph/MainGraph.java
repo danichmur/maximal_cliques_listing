@@ -44,6 +44,8 @@ public interface MainGraph<V,E> {
     VertexNeighbourhood getVertexNeighbourhood(int vertexId);
 
     IntSet getVertexNeighbours(int vertexId);
+    IntSet getReversedVertexNeighbours(int vertexId);
+    void cleanReversedNeighbourhood();
 
     boolean isEdgeLabelled();
 
@@ -66,5 +68,7 @@ public interface MainGraph<V,E> {
     int filter(AtomicBitSetArray vtag, AtomicBitSetArray etag);
 
     void buildSortedNeighborhood();
+
+    void removeLowers(int i);
 
 }

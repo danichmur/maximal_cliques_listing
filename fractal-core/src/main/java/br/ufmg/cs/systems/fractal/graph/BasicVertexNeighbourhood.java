@@ -11,11 +11,15 @@ import com.koloboke.collect.IntCursor;
 import com.koloboke.collect.map.IntIntCursor;
 import com.koloboke.collect.map.IntIntMap;
 import com.koloboke.collect.map.hash.HashIntIntMaps;
+
+import java.io.File;
+import java.io.IOException;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
 import com.koloboke.collect.set.hash.HashIntSet;
 import com.koloboke.function.IntIntConsumer;
+import net.openhft.chronicle.map.*;
 
 public class BasicVertexNeighbourhood implements VertexNeighbourhood, java.io.Serializable {
    // Key = neighbour vertex id, Value = edge id that connects owner of neighbourhood with Key
@@ -213,23 +217,7 @@ public class BasicVertexNeighbourhood implements VertexNeighbourhood, java.io.Se
 
    @Override
    public void addEdge(int neighbourVertexId, int edgeId) {
-      //if (neighbourhoodMap.containsKey(neighbourVertexId)) {
-      //   throw new RuntimeException(
-      //         "This edge already exists and this is not a multi-vertex neighbourhood.");
-      //}
       neighbourhood.add(neighbourVertexId);
-      //neighbourhoodMap.put(neighbourVertexId, -1);
-   }
-
-   @Override
-   public void removeLowers(int i) {
-      //IntIntCursor cur = neighbourhoodMap.cursor();
-      IntCursor cur = neighbourhood.getInternalSet().cursor();
-      while (cur.moveNext()) {
-         if (cur.elem() < i) {
-            cur.remove();
-         }
-      }
    }
 
    @Override
