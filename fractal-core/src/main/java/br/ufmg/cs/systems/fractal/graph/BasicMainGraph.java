@@ -582,9 +582,12 @@ public class BasicMainGraph<V, E> implements MainGraph<V, E> {
             minv = v2;
             maxv = v1;
         }
+        ensureCanStoreNewVertices(maxv);
 
         VertexNeighbourhood vertexNeighbourhood = this.vertexNeighborhoods[minv];
-
+        if (vertexNeighbourhood == null) {
+            vertexNeighbourhood = createVertexNeighbourhood();
+        }
         vertexNeighbourhood.forEachEdgeId(maxv, intConsumer);
     }
 
@@ -967,6 +970,11 @@ public class BasicMainGraph<V, E> implements MainGraph<V, E> {
             }
         }
         mainGraph.put(i, v);
+    }
+
+    @Override
+    public void closeMap() {
+        mainGraph.close();
     }
 
 }

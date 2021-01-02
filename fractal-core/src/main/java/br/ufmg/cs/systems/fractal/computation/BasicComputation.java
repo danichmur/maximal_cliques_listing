@@ -193,6 +193,12 @@ public abstract class BasicComputation<S extends Subgraph>
     }
 
     @Override
+    public void setSubgraphEnumerator(SubgraphEnumerator<S> s) {
+        subgraphEnumerator = s;
+
+    }
+
+    @Override
     public SubgraphEnumerator<S> forkEnumerator(Computation<S> computation) {
        Computation<S> curr = this;
        Computation<S> currComp = computation;

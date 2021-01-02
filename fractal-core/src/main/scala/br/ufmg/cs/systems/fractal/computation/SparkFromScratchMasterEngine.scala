@@ -181,7 +181,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         aggAccums = _aggAccums,
         previousAggregationsBc = previousAggregationsBc)
 
-      //execEngines.persist(DISK_ONLY)
       execEngines.foreachPartition(_ => {})
 
       val enumerationElapsed = System.currentTimeMillis - enumerationStart
@@ -336,7 +335,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val start00 = System.currentTimeMillis
 
           val ret = processCompute(iter, c)
-          logWarning(s"time: ${(System.currentTimeMillis - start00) / 1000.0}s")
+          logWarning(s"processCompute time: ${(System.currentTimeMillis - start00) / 1000.0}s; Found ${ret.getResults.size()} vertices.")
 
           val computationTree = new ComputationTree[S](c, null)
 
@@ -377,8 +376,22 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               }
             }
             if (!done) {
+//              if (result.head.vertex != -1) {
+//                //Ok, we have only vertex, need to extend
+//                val (next_iter, extend_time) = extend(iter, result.head.vertex)
+//                val data_path = c.getConfig.getString("dump_path", "")
+//                val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
+//                val orphan = new ComputationResult[S](iterName, subName)
+//
+//                logWarning("ONLY VERTEX " + result.head.vertex.toString +
+//                  s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s;"
+//                )
+//
+//                result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
+//              }
 
               if (result.head.serializedFileIter != "") {
+                //Ok, we have serialized iter and sub
                 val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
                 val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
                 result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
@@ -387,7 +400,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
                 result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
               }
+
               val subgraph = result.head.subgraph
+              val iter = result.head.enumerator
+              //iter.setForFrozen(subgraph, result.head.enumerator.getDag)
+
               if (subgraph.getVertices.size() == Refrigerator.size) {
                 Refrigerator.result = subgraph.getVertices :: Refrigerator.result
                 if (Refrigerator.result.size >= N) {
@@ -397,11 +414,14 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 repeat = false
               } else {
                 val nextComp = result.nextComputation
-                nextComp.getSubgraphEnumerator.set(nextComp, subgraph)
-                nextComp.getSubgraphEnumerator.setForFrozen(result.head.enumerator.getDag)
+
+                nextComp.setSubgraphEnumerator(iter)
+                //nextComp.getSubgraphEnumerator.set(nextComp, subgraph)
+                //nextComp.getSubgraphEnumerator.setForFrozen(result.head.enumerator.getDag)
 
                 subgraph.nextExtensionLevel()
                 val results = nextComp.compute(subgraph).getResults
+                logWarning(s"${subgraph.getVertices}: get ${results.size()} childrens")
                 subgraph.previousExtensionLevel()
 
                 if (results.length == 1) {
@@ -437,189 +457,206 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             }
           }
 
-        var elapsed = System.currentTimeMillis - start
-        logInfo(s"WorkStealingMode internal=${config.internalWsEnabled()}" +
-          s" external=${config.externalWsEnabled()}")
-        logInfo(s"InitialComputation step=${c.getStep}" +
-          s" partitionId=${c.getPartitionId} took ${elapsed} ms")
-
-        if (false && config.wsEnabled()) {
-          // setup work-stealing system
-          start = System.currentTimeMillis
-
-          def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
-            processCompute(iter, c)
-          }
-
-          val gtagExecutorActor = execEngine.slaveActorRef
-          workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
-          workStealingSys.workStealingCompute(c)
-          elapsed = System.currentTimeMillis - start
-
-          logInfo(s"WorkStealingComputation step=${c.getStep}" +
+          var elapsed = System.currentTimeMillis - start
+          logInfo(s"WorkStealingMode internal=${config.internalWsEnabled()}" +
+            s" external=${config.externalWsEnabled()}")
+          logInfo(s"InitialComputation step=${c.getStep}" +
             s" partitionId=${c.getPartitionId} took ${elapsed} ms")
-        }
-        ret
-      }
 
-      else
-      {
-        processCompute(iter, c)
-      }
-    }
+          if (false && config.wsEnabled()) {
+            // setup work-stealing system
+            start = System.currentTimeMillis
 
-    var extend_time_all = 0L
-    var ser_time_all = 0L
-    var colors_all = 0L
-
-    private def hasNextComputation(iter: SubgraphEnumerator[S], c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
-      var cou = 1
-
-      val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
-      val size = Refrigerator.size - 1
-      val states = KClistEnumerator.getColors(graph)
-      val result = new ComputationResults[S]
-      val data_path = c.getConfig.getString("dump_path", "")
-      val getOnlyFirst = iter.isGetFirstCandidate
-      var found = false
-      var extendNeeded = false
-
-      while (iter.hasNext && !(found && getOnlyFirst)) {
-        val u = iter.nextElem()
-
-        val prefixSize = iter.getSubgraph.getVertices.size()
-        val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
-
-        val (uniqColors, elapsed) = FractalSparkRunner.time {
-          val dag = iter.getDag
-
-          val neigh_colors = ListBuffer.empty[Int]
-          neigh_colors += states(u)
-
-          if (!dag.containsKey(u)) {
-            val neighbours = graph.getVertexNeighbours(u)
-            val cursor = neighbours.getInternalSet.cursor()
-            while (cursor.moveNext()) {
-              neigh_colors += states(cursor.elem())
+            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+              processCompute(iter, c)
             }
-          } else {
-            val dagNeighbours = dag.get(u)
-            val cursor = dagNeighbours.cursor()
-            while (cursor.moveNext()) {
-              neigh_colors += states(cursor.elem())
-            }
+
+            val gtagExecutorActor = execEngine.slaveActorRef
+            workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
+            workStealingSys.workStealingCompute(c)
+            elapsed = System.currentTimeMillis - start
+
+            logInfo(s"WorkStealingComputation step=${c.getStep}" +
+              s" partitionId=${c.getPartitionId} took ${elapsed} ms")
           }
-
-          //k-clique contains k colors
-          neigh_colors.distinct.size
+          val graph = config.getMainGraph[MainGraph[_, _]]()
+          graph.closeMap()
+          ret
         }
 
-        colors_all += elapsed
+        else {
+          processCompute(iter, c)
+        }
+      }
 
-        val isFirstComputation = maxPossibleSize == 0
-        val isSizeOk = !(isFirstComputation && uniqColors < size || !isFirstComputation && maxPossibleSize < size)
+      var extend_time_all = 0L
+      var ser_time_all = 0L
+      var colors_all = 0L
 
-        if (isSizeOk && uniqColors + prefixSize > size) {
-          found = true
-          cou += 1
+      private def hasNextComputation(iter: SubgraphEnumerator[S], c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
+        logWarning("hasNextComputation: " + iter.getSubgraph.getVertices.toString + " " + iter.getDag.keySet)
+        var cou = 1
 
-          if (prefixSize == 0) {
-            KClistEnumerator.writeSizes = true
-            Refrigerator.graphCounter += 1
-            logWarning("Vertex: " + u.toString + " num: " + cou.toString)
-          }
+        val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
+        val size = Refrigerator.size - 1
+        val states = KClistEnumerator.getColors(graph)
+        val result = new ComputationResults[S]
+        val data_path = c.getConfig.getString("dump_path", "")
+        val getOnlyFirst = iter.isGetFirstCandidate
+        var found = false
+        var extendNeeded = true
 
-          if (extendNeeded) {
-            val time0 = System.currentTimeMillis
-            val next_iter = iter.extend(u)
-            val extend_time = System.currentTimeMillis - time0
-            extend_time_all += extend_time
+        while (iter.hasNext && !(found && getOnlyFirst)) {
+          val u = iter.nextElem()
+          logWarning(u.toString)
+          val prefixSize = iter.getSubgraph.getVertices.size()
+          val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
 
-            if (!getOnlyFirst) {
-              val ser = System.currentTimeMillis
+          val (uniqColors, elapsed) = FractalSparkRunner.time {
+            val dag = iter.getDag
 
-              val iterB = SparkConfiguration.serialize(next_iter)
-              val subB = SparkConfiguration.serialize(iter.getSubgraph)
-              val iterFile = File.createTempFile("iter", "", new File(data_path))
-              val subFile = File.createTempFile("sub", "", new File(data_path))
-              Files.write(Paths.get(iterFile.getCanonicalPath), iterB)
-              Files.write(Paths.get(subFile.getCanonicalPath), subB)
+            val neigh_colors = ListBuffer.empty[Int]
+            neigh_colors += states(u)
 
-              val ser_time = System.currentTimeMillis - ser
-              ser_time_all += ser_time
-
-              //result.add(iterFile.getCanonicalPath, subFile.getCanonicalPath)
-              logWarning("DUMP TO FILE! " + cou.toString +
-                s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
-              )
+            if (!dag.containsKey(u)) {
+              val neighbours = graph.getVertexNeighbours(u)
+              val cursor = neighbours.getInternalSet.cursor()
+              while (cursor.moveNext()) {
+                neigh_colors += states(cursor.elem())
+              }
             } else {
-              iter.shouldRemoveLastWord = false
-              result.add(iter, iter.getSubgraph)
-              //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
+              val dagNeighbours = dag.get(u)
+              val cursor = dagNeighbours.cursor()
+              while (cursor.moveNext()) {
+                neigh_colors += states(cursor.elem())
+              }
+            }
+            //k-clique contains k colors
+            neigh_colors.distinct.size
+          }
+
+          colors_all += elapsed
+
+          val isFirstComputation = maxPossibleSize == 0
+          val isSizeOk = !(isFirstComputation && uniqColors < size || !isFirstComputation && maxPossibleSize < size)
+
+          if (isSizeOk && uniqColors + prefixSize > size) {
+            found = true
+
+            if (prefixSize == 0) {
+            //  extendNeeded = false
+              KClistEnumerator.writeSizes = true
+              Refrigerator.graphCounter += 1
+            }
+
+            if (extendNeeded) {
+              val (next_iter, extend_time) = extend(iter, u)
+              if (!getOnlyFirst) {
+                val s = iter.getSubgraph
+                val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
+
+                result.add(iterName, subName)
+
+                logWarning("DUMP TO FILE! " + cou.toString + " " + iter.getSubgraph.getVertices.toString + " " +
+                  next_iter.getDag.keySet + ""
+                  //s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+                )
+              } else {
+                iter.shouldRemoveLastWord = false
+                result.add(next_iter, iter.getSubgraph)
+                logWarning(s"Only add vertex: ${u}"+ " " + iter.getSubgraph.getVertices.toString)
+                //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
+              }
+            } else {
+              //result.add(u)
+            }
+
+            cou += 1
+
+          }
+        }
+        //KClistEnumerator.writeSizes = false
+        result
+      }
+
+      private def extend(iter: SubgraphEnumerator[S], u : Int): (SubgraphEnumerator[S], Long) = {
+        val time0 = System.currentTimeMillis
+        val next_iter = iter.extend(u)
+        val extend_time = System.currentTimeMillis - time0
+        extend_time_all += extend_time
+        (next_iter, extend_time)
+      }
+
+      private def save_iter(next_iter: SubgraphEnumerator[S], subgraph: Subgraph, data_path : String): (String, String, Long)  = {
+        val ser = System.currentTimeMillis
+
+        val iterB = SparkConfiguration.serialize(next_iter)
+        val subB = SparkConfiguration.serialize(subgraph)
+        val iterFile = File.createTempFile("iter", "", new File(data_path))
+        val subFile = File.createTempFile("sub", "", new File(data_path))
+        Files.write(Paths.get(iterFile.getCanonicalPath), iterB)
+        Files.write(Paths.get(subFile.getCanonicalPath), subB)
+
+        val ser_time = System.currentTimeMillis - ser
+        ser_time_all += ser_time
+
+        (iterFile.getCanonicalPath, subFile.getCanonicalPath, ser_time)
+      }
+
+      private def lastComputation(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+        val WRITE_TO_FILE = false
+
+        var addWords = 0L
+        var subgraphsGenerated = 0L
+
+        val wordIds = iter.getWordIds
+        val result = new ComputationResults[S]
+
+        if (wordIds != null) {
+          KClistEnumerator.count += 1
+
+          if (WRITE_TO_FILE) {
+            lastStepConsumer.set(iter.getSubgraph, c)
+            wordIds.forEach(lastStepConsumer)
+            addWords += lastStepConsumer.addWords
+            subgraphsGenerated += lastStepConsumer.subgraphsGenerated
+          } else {
+            val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
+            val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](SparkConfiguration.serialize(iter))
+
+            val keys = iter.getDag.keySet
+            new_iter.getDag.clear()
+
+            for (w <- keys) {
+              val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
+              new_subgraph.addWord(w)
+              //TODO: save it!
+              result.add(new_iter, new_subgraph)
             }
           }
-        }
-      }
-      KClistEnumerator.writeSizes = false
-      result
-    }
-
-    private def lastComputation(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
-      val WRITE_TO_FILE = false
-
-      var addWords = 0L
-      var subgraphsGenerated = 0L
-
-      val wordIds = iter.getWordIds
-      val result = new ComputationResults[S]
-
-      if (wordIds != null) {
-        KClistEnumerator.count += 1
-
-        if (WRITE_TO_FILE) {
-          lastStepConsumer.set(iter.getSubgraph, c)
-          wordIds.forEach(lastStepConsumer)
-          addWords += lastStepConsumer.addWords
-          subgraphsGenerated += lastStepConsumer.subgraphsGenerated
         } else {
-          val bytes = SparkConfiguration.serialize(iter)
-          val new_iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bytes)
-
-          val subgrap_bytes = SparkConfiguration.serialize(iter.getSubgraph)
-          val new_subgraph = SparkConfiguration.deserialize[S](subgrap_bytes)
-
-          for (w <- wordIds) {
-            new_subgraph.addWord(w)
+          val subgraph = iter.next()
+          addWords += 1
+          if (c.filter(subgraph)) {
+            subgraphsGenerated += 1
+            c.process(subgraph)
           }
-          //TODO: save it!
-          result.add(new_iter, new_subgraph)
         }
-      } else {
-        val subgraph = iter.next()
-        addWords += 1
-        if (c.filter(subgraph)) {
-          subgraphsGenerated += 1
-          c.process(subgraph)
-        }
+
+        result
       }
 
-      result
-    }
+      private def processCompute(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+        val nextComp = c.nextComputation()
 
-    private def processCompute(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S]
-
-    =
-    {
-      val nextComp = c.nextComputation()
-
-      if (nextComp != null) {
-        hasNextComputation(iter, c, nextComp)
-      } else {
-        lastComputation(iter, c)
+        if (nextComp != null) {
+          hasNextComputation(iter, c, nextComp)
+        } else {
+          lastComputation(iter, c)
+        }
       }
     }
   }
-}
 
 }
 

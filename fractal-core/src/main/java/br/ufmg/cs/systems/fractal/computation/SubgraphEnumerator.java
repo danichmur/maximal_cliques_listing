@@ -7,6 +7,7 @@ import br.ufmg.cs.systems.fractal.util.pool.IntArrayListPool;
 import com.koloboke.collect.IntCollection;
 import com.koloboke.collect.IntCursor;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
@@ -27,7 +28,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    protected boolean lastHasNext;
 
-   protected int currElem;
+   protected int currElem = -1;
 
    protected IntCollection wordIds;
 
@@ -56,20 +57,15 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       return active != null && active.get();
    }
 
-   public boolean isFrozen() {
-      return frozen;
-   }
-
-
-   public void setFrozen(boolean frozen) {this.frozen = frozen; }
 
    public SubgraphEnumerator() {
       this.rlock = new ReentrantLock();
       this.prefix = IntArrayListPool.instance().createObject();
    }
 
-   public void setForFrozen(IntArrayList prefix, IntObjMap<IntArrayList>  dag) {
-      subgraph.setVertices(prefix);
+   public void setForFrozen(S subgraph, IntObjMap<IntArrayList>  dag) {
+      //subgraph.setVertices(prefix);
+      this.subgraph = subgraph;
       set(dag.keySet());
 
       if(wordIds.size() == 1){
@@ -146,14 +142,22 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    public synchronized SubgraphEnumerator<S> set(IntCollection wordIds) {
       this.prefix.clear();
+
       this.prefix.addAll(subgraph.getWords());
       this.lastHasNext = false;
-      this.currElem = -1;
       this.wordIds = wordIds;
       this.cur = wordIds.cursor();
+
+//      if (currElem != -1) {
+//         while(cur.moveNext()) {
+//            if (cur.elem() == currElem) {
+//               break;
+//            }
+//         }
+//      }
+
       this.shouldRemoveLastWord = false;
       this.active = new AtomicBoolean(true);
-
       return this;
    }
 

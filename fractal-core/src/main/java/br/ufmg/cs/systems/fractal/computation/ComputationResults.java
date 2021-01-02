@@ -44,6 +44,10 @@ public class ComputationResults<S extends Subgraph> {
         results.add(new ComputationResult<>(serializedFileIter, serializedFileSub));
     }
 
+    public void add(int vertex) {
+        results.add(new ComputationResult<>(vertex));
+    }
+
     public void addAll(ComputationResults<S> newResults) {
         results.addAll(newResults.results);
     }

@@ -6,6 +6,7 @@ public class ComputationResult<S extends Subgraph> {
     S subgraph;
     String serializedFileIter = "";
     String serializedFileSub = "";
+    int vertex = -1;
 
     ComputationResult(SubgraphEnumerator<S> enumerator, S subgraph) {
         this.enumerator = enumerator;
@@ -15,6 +16,10 @@ public class ComputationResult<S extends Subgraph> {
     ComputationResult(String serializedFileIter, String serializedFileSub) {
         this.serializedFileIter = serializedFileIter;
         this.serializedFileSub = serializedFileSub;
+    }
+
+    ComputationResult(int v) {
+        vertex = v;
     }
 
 }

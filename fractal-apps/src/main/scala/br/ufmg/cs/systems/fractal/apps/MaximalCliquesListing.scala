@@ -30,7 +30,7 @@ case class CliquesList(
       set ("comm_strategy", commStrategy).
       set ("num_partitions", numPartitions).
       set ("dump_path", dataPath).
-      set ("top_n", N)
+      set ("top_N", N)
     testF.setNew(explorationSteps)
     val cliquesRes = testF.explore(explorationSteps)
 
@@ -67,11 +67,12 @@ object MaximalCliquesListing extends Logging {
 
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els/for_kcore_0")
     //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/00test.txt")
-    //val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els/for_kcore_4")
+    //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els2/01test.txt")
+    val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
     //val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
     //val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
-    val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
+    //val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
 
     val time = System.currentTimeMillis()
     //val colorTime = CFLVertexColoring.countAndSetColors(graphPath)
@@ -101,15 +102,15 @@ object MaximalCliquesListing extends Logging {
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
-    val topN = 1
+    val topN = 3
     addCliques(s, topN)
 
     logWarning("extends: " + KClistEnumerator.count.toString)
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
     for (r <- Refrigerator.result) {
-      //TODO vertex original ids
-      println(r.size) //toArray.sorted.deep.mkString(", "))
+      println(r)
+      println(r.size())
     }
 
     cleanDataFolder(dataPath)

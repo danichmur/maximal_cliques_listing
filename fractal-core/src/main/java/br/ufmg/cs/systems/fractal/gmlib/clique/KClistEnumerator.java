@@ -52,11 +52,22 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     private void writeObject(ObjectOutputStream out) throws IOException {
         //out.defaultWriteObject();
 
-        IntObjCursor<IntArrayList> cur = dag.cursor();
-        out.writeInt(dag.size());
-        while (cur.moveNext()) {
-            out.writeInt(cur.key());
-            out.writeObject(cur.value());
+        IntObjCursor<IntArrayList> dagCur = dag.cursor();
+        int i = 0;
+//        while (dagCur.moveNext()) {
+//            if (dagCur.key() == cur.elem()) {
+//                break;
+//            }
+//            i++;
+//        }
+
+        out.writeInt(dag.size() - i);
+        out.writeInt(currElem);
+
+
+        while (dagCur.moveNext()) {
+            out.writeInt(dagCur.key());
+            out.writeObject(dagCur.value());
         }
     }
 
@@ -65,6 +76,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
         init(null);
         int dagSize = in.readInt();
+        currElem = in.readInt();
         dag.ensureCapacity(dagSize);
 
         while (dagSize != 0) {
@@ -73,6 +85,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             IntArrayList values = (IntArrayList) in.readObject();
             dag.put(key, values);
         }
+        //set(dag.keySet());
     }
 
     public KClistEnumerator() {}
@@ -137,8 +150,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     }
 
     @Override
-    public void setForFrozen(IntArrayList prefix, IntObjMap<IntArrayList> dag) {
-        super.setForFrozen(prefix, dag);
+    public void setForFrozen(S subgraph, IntObjMap<IntArrayList> dag) {
+        super.setForFrozen(subgraph, dag);
         this.dag = dag;
     }
 
@@ -173,7 +186,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
                 continue;
             }
             Utils.smartChoiceIntersect(orderedVertices, orderedVertices2,
-                    i + 1, orderedVertices.size(),
+                    //TODO: i+1 ~ seems, we have to sort :(
+                    0, orderedVertices.size(),
                     0, orderedVertices2.size(), target);
             dag.put(v, target);
         }
@@ -190,6 +204,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         IntSet orderedVertices = graph.getVertexNeighbours(u);
 
         dag.ensureCapacity(orderedVertices.size());
+        orderedVertices.getInternalSet().toIntArray();
         IntCursor cur0 = orderedVertices.getInternalSet().cursor();
         while (cur0.moveNext()) {
             int v = cur0.elem();
@@ -245,10 +260,10 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
     // Function to assign colors to vertices of graph
     private static void colorGraph(MainGraph graph) {
-        System.out.println("Start coloring");
-        long time = System.currentTimeMillis();
         int N = graph.getNumberVertices() + 1;
-        System.out.println(N);
+        System.out.println("Start coloring " + N);
+        long time = System.currentTimeMillis();
+
         colors = new ArrayList<>(Collections.nCopies(N, 0));
 
         for (int u = 0; u < N; u++) {
@@ -257,7 +272,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             if (neigh == null) {
                 continue;
             }
-            //System.out.println(u + " " + neigh.getInternalSet() + " " + graph.getReversedVertexNeighbours(u).getInternalSet());
+            System.out.println(u + " " + neigh.getInternalSet());// + " " + graph.getReversedVertexNeighbours(u).getInternalSet());
 
             for (int i : neigh.getInternalSet()) {
                 if (colors.get(i) != 0) {
@@ -281,8 +296,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             colors.set(u, color);
         }
 
-        System.out.println("colored " + (System.currentTimeMillis() - time) / 1000.0 + "s");
-        long time1 = System.currentTimeMillis();
+        //System.out.println("colored " + (System.currentTimeMillis() - time) / 1000.0 + "s");
+        //long time1 = System.currentTimeMillis();
         //TODO
         neigboursColorsCount = new ArrayList<>(Collections.nCopies(N, N));
 
@@ -309,7 +324,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         graph.cleanReversedNeighbourhood();
 
         System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");
-        //System.out.println(colors);
+        System.out.println(colors);
     }
 
     public static void countAndSetColors(GraphInner graph) {
@@ -349,6 +364,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         }
 
         System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");
-        //colors = null;
+        System.out.println(colors);
+        colors = null;
     }
 }

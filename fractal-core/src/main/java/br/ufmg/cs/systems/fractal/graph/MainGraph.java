@@ -71,4 +71,6 @@ public interface MainGraph<V,E> {
 
     void removeLowers(int i);
 
+    void closeMap();
+
 }

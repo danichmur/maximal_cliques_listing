@@ -65,6 +65,9 @@ public interface Computation<S extends Subgraph> {
     int getDepth();
 
     SubgraphEnumerator<S> getSubgraphEnumerator();
+
+    void setSubgraphEnumerator(SubgraphEnumerator<S> s);
+
     SubgraphEnumerator<S> forkEnumerator(Computation<S> computation);
 
     Class<? extends Subgraph> getSubgraphClass();
