@@ -420,11 +420,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 //nextComp.getSubgraphEnumerator.setForFrozen(result.head.enumerator.getDag)
 
                 subgraph.nextExtensionLevel()
+                logWarning(subgraph.toOutputString)
+
                 val results = nextComp.compute(subgraph).getResults
-                logWarning(s"${subgraph.getVertices}: get ${results.size()} childrens")
+               // logWarning(s"${subgraph.getVertices}: get ${results.size()} childrens")
                 subgraph.previousExtensionLevel()
 
-                if (results.length == 1) {
+                if (false && results.length == 1) {
                   result.setHead(results.get(0))
                   result.updateId()
                   result.updateLevel()
@@ -435,6 +437,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   nextComp.getSubgraphEnumerator.setGetFirstCandidate(true)
                   repeat = true
                 } else {
+                  if (results.length == 0) {
+                    logWarning("|--> X")
+                  }
                   for (orphan <- results) {
                     val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
                     result.adopt(c)
@@ -494,7 +499,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       var colors_all = 0L
 
       private def hasNextComputation(iter: SubgraphEnumerator[S], c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
-        logWarning("hasNextComputation: " + iter.getSubgraph.getVertices.toString + " " + iter.getDag.keySet)
+        //logWarning("hasNextComputation: " + iter.getSubgraph.getVertices.toString + " " + iter.getDag.keySet)
         var cou = 1
 
         val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
@@ -508,7 +513,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
         while (iter.hasNext && !(found && getOnlyFirst)) {
           val u = iter.nextElem()
-          logWarning(u.toString)
+         // logWarning(u.toString)
           val prefixSize = iter.getSubgraph.getVertices.size()
           val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
 
@@ -545,7 +550,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             if (prefixSize == 0) {
             //  extendNeeded = false
-              KClistEnumerator.writeSizes = true
+            //  KClistEnumerator.writeSizes = true
               Refrigerator.graphCounter += 1
             }
 
@@ -553,18 +558,20 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               val (next_iter, extend_time) = extend(iter, u)
               if (!getOnlyFirst) {
                 val s = iter.getSubgraph
+                logWarning("|--> " + s.toOutputString)
+
                 val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
 
                 result.add(iterName, subName)
-
-                logWarning("DUMP TO FILE! " + cou.toString + " " + iter.getSubgraph.getVertices.toString + " " +
-                  next_iter.getDag.keySet + ""
-                  //s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
-                )
+//
+//                logWarning("DUMP TO FILE! " + cou.toString + " " + iter.getSubgraph.getVertices.toString + " " +
+//                  next_iter.getDag.keySet + ""
+//                  //s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+//                )
               } else {
                 iter.shouldRemoveLastWord = false
                 result.add(next_iter, iter.getSubgraph)
-                logWarning(s"Only add vertex: ${u}"+ " " + iter.getSubgraph.getVertices.toString)
+               // logWarning(s"Only add vertex: ${u}"+ " " + iter.getSubgraph.getVertices.toString)
                 //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
               }
             } else {
