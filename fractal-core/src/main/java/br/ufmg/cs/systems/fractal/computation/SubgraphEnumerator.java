@@ -201,7 +201,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       //IntArrayListPool.instance().reclaimObject(prefix);
    }
 
-   private void maybeRemoveLastWord() {
+   public void maybeRemoveLastWord() {
       if (shouldRemoveLastWord) {
          subgraph.removeLastWord();
          shouldRemoveLastWord = false;

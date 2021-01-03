@@ -343,6 +343,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             computationTree.adopt(new ComputationTree[S](computationTree, c.nextComputation(), r))
           }
 
+
           var result = computationTree
           var done = false
           var repeat = false
@@ -376,19 +377,21 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               }
             }
             if (!done) {
-//              if (result.head.vertex != -1) {
-//                //Ok, we have only vertex, need to extend
-//                val (next_iter, extend_time) = extend(iter, result.head.vertex)
-//                val data_path = c.getConfig.getString("dump_path", "")
-//                val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
-//                val orphan = new ComputationResult[S](iterName, subName)
-//
-//                logWarning("ONLY VERTEX " + result.head.vertex.toString +
-//                  s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s;"
-//                )
-//
-//                result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
-//              }
+              if (result.head.vertex != -1) {
+                //Ok, we have only vertex, need to extend
+                iter.maybeRemoveLastWord()
+                val (next_iter, extend_time) = extend(iter, result.head.vertex)
+                val data_path = c.getConfig.getString("dump_path", "")
+                val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
+                val orphan = new ComputationResult[S](iterName, subName)
+
+                logWarning("ONLY VERTEX " + result.head.vertex.toString +
+                  s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s;"
+                )
+
+                result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
+
+              }
 
               if (result.head.serializedFileIter != "") {
                 //Ok, we have serialized iter and sub
@@ -402,8 +405,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               }
 
               val subgraph = result.head.subgraph
-              val iter = result.head.enumerator
-              //iter.setForFrozen(subgraph, result.head.enumerator.getDag)
+              val saved_iter = result.head.enumerator
 
               if (subgraph.getVertices.size() == Refrigerator.size) {
                 Refrigerator.result = subgraph.getVertices :: Refrigerator.result
@@ -415,7 +417,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               } else {
                 val nextComp = result.nextComputation
 
-                nextComp.setSubgraphEnumerator(iter)
+                nextComp.setSubgraphEnumerator(saved_iter)
 
                 subgraph.nextExtensionLevel()
                 //logWarning(subgraph.toOutputString)
@@ -434,9 +436,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   nextComp.getSubgraphEnumerator.setGetFirstCandidate(true)
                   repeat = true
                 } else {
-//                  if (results.isEmpty) {
-//                    logWarning("|--> X")
-//                  }
+                  if (results.isEmpty) {
+                    //logWarning("|--> X")
+                  }
                   for (orphan <- results) {
                     val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
                     result.adopt(c)
@@ -446,7 +448,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
 
                 val stepTime = System.currentTimeMillis - start0
-                //logWarning(s"handling ${result.id}, level ${result.level}, time: ${stepTime / 1000.0}s")
                 if (result.level % 100 == 0) {
                   logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
                     s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
@@ -545,7 +546,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             found = true
 
             if (prefixSize == 0) {
-            //  extendNeeded = false
+              extendNeeded = false
             //  KClistEnumerator.writeSizes = true
               Refrigerator.graphCounter += 1
             }
@@ -559,19 +560,20 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
 
                 result.add(iterName, subName)
-//
+
 //                logWarning("DUMP TO FILE! " + cou.toString + " " + iter.getSubgraph.getVertices.toString + " " +
 //                  next_iter.getDag.keySet + ""
-//                  //s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
-//                )
+                  //s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+ //               )
               } else {
                 iter.shouldRemoveLastWord = false
                 result.add(next_iter, iter.getSubgraph)
-               // logWarning(s"Only add vertex: ${u}"+ " " + iter.getSubgraph.getVertices.toString)
+                logWarning(s"Only add vertex: ${u}"+ " " + iter.getSubgraph.getVertices.toString)
                 //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
               }
             } else {
-              //result.add(u)
+              logWarning(s"Set one vertex: ${u}")
+              result.add(u)
             }
 
             cou += 1
