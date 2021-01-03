@@ -1,5 +1,6 @@
 package br.ufmg.cs.systems.fractal.graph;
 
+import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
 import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 import org.apache.commons.io.input.BOMInputStream;
@@ -32,19 +33,16 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
    @Override
    protected void readFromInputStream(InputStream is) {
       try {
-         IntSet v = new IntSet();
+         IntArrayList v = new IntArrayList();
          for (int i = 0; i < 10000; i++) {
             v.add(i);
          }
 
          mainGraph = ChronicleMapBuilder
-                 .of(Integer.class, IntSet.class)
+                 .of(Integer.class, IntArrayList.class)
                  .name("main-graph")
                  .entries(1_000_0000)
                  .averageValue(v)
-                 //.maxChunksPerEntry(1_000_000)
-                 //.actualChunkSize(100_000)
-                 //.actualSegments(1)
                  .createPersistedTo(new File("map.dat"));
       } catch (IOException e) {
          e.printStackTrace();
@@ -59,7 +57,7 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
          System.out.println("readFromInputStream");
          int i = 0;
          int source = -1;
-         IntSet vertexNeighbourhood = new IntSet();
+         IntArrayList vertexNeighbourhood = new IntArrayList();
 
          while (line != null) {
             i++;
@@ -85,7 +83,7 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
 
                      vertexNeighbourhood = mainGraph.get(vertexId);
                      if (vertexNeighbourhood == null) {
-                        vertexNeighbourhood = new IntSet();
+                        vertexNeighbourhood = new IntArrayList();
                      }
                   }
                   source = vertexId;
@@ -101,18 +99,26 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
 
                vertexNeighbourhood1.addEdge(edge.getSourceId(), edge.getEdgeId());
             }
-
-
             line = reader.readLine();
          }
          //the last one
          mainGraph.put(source, vertexNeighbourhood);
          reader.close();
+         buildSortedNeighborhood();
       } catch (IOException e) {
          throw new RuntimeException(e);
       }
    }
 
+
+   @Override
+   public void buildSortedNeighborhood() {
+      for (int i : mainGraph.keySet()) {
+         IntArrayList vertexNeighbourhood = mainGraph.get(i);
+         vertexNeighbourhood.sort();
+         mainGraph.put(i, vertexNeighbourhood);
+      }
+   }
 
    @Override
    protected Edge parseEdge(StringTokenizer tokenizer, int vertexId) {

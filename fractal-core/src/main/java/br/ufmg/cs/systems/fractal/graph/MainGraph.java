@@ -1,6 +1,7 @@
 package br.ufmg.cs.systems.fractal.graph;
 
 import br.ufmg.cs.systems.fractal.util.collection.AtomicBitSetArray;
+import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
 import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.collection.ReclaimableIntCollection;
 import com.koloboke.collect.IntCollection;
@@ -43,7 +44,7 @@ public interface MainGraph<V,E> {
 
     VertexNeighbourhood getVertexNeighbourhood(int vertexId);
 
-    IntSet getVertexNeighbours(int vertexId);
+    IntArrayList getVertexNeighbours(int vertexId);
     IntSet getReversedVertexNeighbours(int vertexId);
     void cleanReversedNeighbourhood();
 

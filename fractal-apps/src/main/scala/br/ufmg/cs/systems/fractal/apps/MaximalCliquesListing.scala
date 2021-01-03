@@ -75,7 +75,7 @@ object MaximalCliquesListing extends Logging {
     //val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
 
     val time = System.currentTimeMillis()
-    val colorTime = CFLVertexColoring.countAndSetColors(graphPath)
+    //val colorTime = CFLVertexColoring.countAndSetColors(graphPath)
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -102,7 +102,7 @@ object MaximalCliquesListing extends Logging {
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
-    val topN = 3
+    val topN = 5
     addCliques(s, topN)
 
     logWarning("extends: " + KClistEnumerator.count.toString)

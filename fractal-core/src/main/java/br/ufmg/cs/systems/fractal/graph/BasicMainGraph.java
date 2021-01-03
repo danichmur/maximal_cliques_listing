@@ -1,6 +1,7 @@
 package br.ufmg.cs.systems.fractal.graph;
 
 import br.ufmg.cs.systems.fractal.util.collection.AtomicBitSetArray;
+import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
 import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.collection.ReclaimableIntCollection;
 import com.koloboke.collect.IntCollection;
@@ -70,7 +71,7 @@ public class BasicMainGraph<V, E> implements MainGraph<V, E> {
     protected boolean isMultiGraph;
     private String name;
 
-    public ChronicleMap<Integer, IntSet> mainGraph;
+    public ChronicleMap<Integer, IntArrayList> mainGraph;
 
     private static int newGraphId() {
         return nextGraphId.getAndIncrement();
@@ -883,8 +884,8 @@ public class BasicMainGraph<V, E> implements MainGraph<V, E> {
     }
 
     @Override
-    public IntSet getVertexNeighbours(int vertexId) {
-        return mainGraph.getOrDefault(vertexId, new IntSet());
+    public IntArrayList getVertexNeighbours(int vertexId) {
+        return mainGraph.getOrDefault(vertexId, new IntArrayList());
     }
 
     @Override
@@ -957,13 +958,13 @@ public class BasicMainGraph<V, E> implements MainGraph<V, E> {
     @Override
     public void removeLowers(int i) {
         //IntIntCursor cur = neighbourhoodMap.cursor();
-        IntSet v = mainGraph.get(i);
+        IntArrayList v = mainGraph.get(i);
 
         if (v == null) {
             return;
         }
 
-        IntCursor cur = v.getInternalSet().cursor();
+        IntCursor cur = v.cursor();
         while (cur.moveNext()) {
             if (cur.elem() < i) {
                 cur.remove();
