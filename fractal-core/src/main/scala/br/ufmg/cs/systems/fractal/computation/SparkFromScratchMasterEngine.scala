@@ -377,31 +377,31 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               }
             }
             if (!done) {
-              if (result.head.vertex != -1) {
-                //Ok, we have only vertex, need to extend
-                iter.maybeRemoveLastWord()
-                val (next_iter, extend_time) = extend(iter, result.head.vertex)
-                val data_path = c.getConfig.getString("dump_path", "")
-                val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
-                val orphan = new ComputationResult[S](iterName, subName)
+              if (!repeat) {
+                if (result.head.vertex != -1) {
+                  //Ok, we have only vertex, need to extend
+                  iter.maybeRemoveLastWord()
+                  val (next_iter, extend_time) = extend(iter, result.head.vertex)
+                  val data_path = c.getConfig.getString("dump_path", "")
+                  val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
+                  val orphan = new ComputationResult[S](iterName, subName)
 
-                logWarning("ONLY VERTEX " + result.head.vertex.toString +
-                  s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s;"
-                )
+//                  logWarning("one vertex " + result.head.vertex.toString +
+//                    s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s;"
+//                  )
 
-                result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
+                  result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
+                }
+                if (result.head.serializedFileIter != "") {
+                  //Ok, we have serialized iter and sub
+                  val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
+                  val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
+                  result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
 
-              }
-
-              if (result.head.serializedFileIter != "") {
-                //Ok, we have serialized iter and sub
-                val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
-                val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
-                result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
-
-                val subBis = new BufferedInputStream(new FileInputStream(result.head.serializedFileSub))
-                val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
-                result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
+                  val subBis = new BufferedInputStream(new FileInputStream(result.head.serializedFileSub))
+                  val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
+                  result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
+                }
               }
 
               val subgraph = result.head.subgraph
@@ -420,24 +420,38 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 nextComp.setSubgraphEnumerator(saved_iter)
 
                 subgraph.nextExtensionLevel()
-                //logWarning(subgraph.toOutputString)
+                logWarning(subgraph.toOutputString + " ---- " + saved_iter.getDag.keySet().toString)
 
                 val results = nextComp.compute(subgraph).getResults
                 subgraph.previousExtensionLevel()
 
-                if (false && results.length == 1) {
+                if (results.length == 1) {
                   result.setHead(results.get(0))
+
                   result.updateId()
                   result.updateLevel()
                   // so here is the logic:
                   // on the previous iteration we checked all candidates, if the results.length == 1, we have only one candidate
                   // so, starting from this point we only need to find first candidate from next candidates
                   // because the number may only falling
-                  nextComp.getSubgraphEnumerator.setGetFirstCandidate(true)
                   repeat = true
+
+                  if (result.head.serializedFileIter != "") {
+
+                    //Ok, this is the first computation without extension,
+                    //so we have to deserialize
+                    val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
+                    val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
+                    result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
+                    result.head.enumerator.setGetFirstCandidate(true)
+
+                    val subBis = new BufferedInputStream(new FileInputStream(result.head.serializedFileSub))
+                    val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
+                    result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
+                  }
                 } else {
                   if (results.isEmpty) {
-                    //logWarning("|--> X")
+                    logWarning("|--> X")
                   }
                   for (orphan <- results) {
                     val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
@@ -445,7 +459,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   }
                   repeat = false
                 }
-
 
                 val stepTime = System.currentTimeMillis - start0
                 if (result.level % 100 == 0) {
@@ -553,26 +566,18 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             if (extendNeeded) {
               val (next_iter, extend_time) = extend(iter, u)
-              if (!getOnlyFirst) {
-                val s = iter.getSubgraph
-                //logWarning("|--> " + s.toOutputString)
+                val str = if (!getOnlyFirst) "no ext " else ""
+                logWarning("|--> " +  str + iter.getSubgraph.toOutputString)
 
                 val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
 
                 result.add(iterName, subName)
 
-//                logWarning("DUMP TO FILE! " + cou.toString + " " + iter.getSubgraph.getVertices.toString + " " +
-//                  next_iter.getDag.keySet + ""
-                  //s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
- //               )
-              } else {
-                iter.shouldRemoveLastWord = false
-                result.add(next_iter, iter.getSubgraph)
-                logWarning(s"Only add vertex: ${u}"+ " " + iter.getSubgraph.getVertices.toString)
-                //logWarning(s"extend_time: ${extend_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;")
-              }
+//                logWarning("DUMP TO FILE! " + cou.toString + " " +
+//                                s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+//                )
             } else {
-              logWarning(s"Set one vertex: ${u}")
+              logWarning(s"Save one vertex: ${u}")
               result.add(u)
             }
 
