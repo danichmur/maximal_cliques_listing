@@ -16,11 +16,11 @@ import com.koloboke.collect.map.IntObjCursor;
 import com.koloboke.collect.map.IntObjMap;
 import com.koloboke.collect.map.hash.HashIntObjMaps;
 import com.koloboke.function.IntObjConsumer;
+import net.openhft.chronicle.map.ChronicleMap;
+import net.openhft.chronicle.map.ChronicleMapBuilder;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
+import java.sql.Array;
 import java.util.*;
 
 public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> implements Serializable {
@@ -32,7 +32,9 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     transient private DagCleaner dagCleaner;
     public static int count = 0;
     public static int size = 1;
-    public static boolean writeSizes = false;
+    public static boolean writeSizes = true;
+
+    private static ChronicleMap<String, byte[]> iterStorage = null;
 
     private static List<Integer> colors = null;
     private static List<Integer> neigboursColorsCount = null;
@@ -44,11 +46,26 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         return colors;
     }
 
-    public static void setColors(Integer[] colors0) {
-        colors = new ArrayList<>(Arrays.asList(colors0));
+    public static ChronicleMap<String, byte[]> getIterStorage() {
+        if (iterStorage == null) {
+            initIterStorage();
+        }
+        return iterStorage;
     }
 
-    //This guys serialize only dags
+    public static void addIter(String s, Object arr) {
+        byte[] b = (byte[]) arr;
+        System.out.println(b.length);
+        getIterStorage().put(s, b);
+    }
+
+    public static byte[] getIter(String s) {
+        byte[] b = getIterStorage().get(s);
+        getIterStorage().remove(s);
+        return b;
+    }
+
+    //This guys (de)serialize only dags
     private void writeObject(ObjectOutputStream out) throws IOException {
         IntObjCursor<IntArrayList> dagCur = dag.cursor();
         int i = 0;
@@ -82,26 +99,6 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     }
 
     @Override
-    //TODO: WHY DO I NEED THIS????
-    public void rebuildState() {
-        dag.clear();
-        if (subgraph.getNumWords() == 0) return;
-        IntArrayList vertices = subgraph.getVertices();
-        IntObjMap<IntArrayList> currentDag = HashIntObjMaps.newMutableMap();
-        IntObjMap<IntArrayList> aux;
-
-        extendFromGraph(computation.getConfig().getMainGraph(), dag, vertices.get(0));
-
-        for (int i = 1; i < vertices.size(); ++i) {
-            aux = currentDag;
-            currentDag = dag;
-            dag = aux;
-            dag.clear();
-            extendFromDag(computation.getConfig().getMainGraph(), currentDag, dag, vertices.get(i));
-        }
-    }
-
-    @Override
     public int getAdditionalSize() {
         return dag.size();
     }
@@ -119,12 +116,12 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     public SubgraphEnumerator<S> extend(int u) {
 
         KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.nextComputation().getSubgraphEnumerator();
-        nextEnumerator.clearDag();
+        //nextEnumerator.clearDag();
 
         if (subgraph.getNumWords() == 0) {
             extendFromGraph(subgraph.getConfig().getMainGraph(), nextEnumerator.dag, u);
         } else {
-            extendFromDag(subgraph.getConfig().getMainGraph(), dag, nextEnumerator.dag, u);
+            extendFromDag(dag, nextEnumerator.dag, u);
         }
 
 
@@ -150,8 +147,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
      *
      * @param u vertex being added to the current subgraph
      */
-    public void extendFromDag(MainGraph graph, IntObjMap<IntArrayList> currentDag,
-                              IntObjMap<IntArrayList> dag, int u) {
+    private void extendFromDag(IntObjMap<IntArrayList> currentDag,
+                               IntObjMap<IntArrayList> dag, int u) {
 
         count++;
 
@@ -161,7 +158,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             return;
         }
 
-        dag.ensureCapacity(orderedVertices.size());
+        //dag.ensureCapacity(orderedVertices.size());
+        Set<Integer> visited = new HashSet<>();
 
         for (int i = 0; i < orderedVertices.size(); ++i) {
             int v = orderedVertices.getUnchecked(i);
@@ -173,7 +171,15 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             Utils.smartChoiceIntersect(orderedVertices, orderedVertices2,
                     i + 1, orderedVertices.size(),
                     0, orderedVertices2.size(), target);
+            visited.add(v);
             dag.put(v, target);
+        }
+
+        IntObjCursor<IntArrayList> cur = dag.cursor();
+        while (cur.moveNext()) {
+            if (!visited.contains(cur.key())) {
+                cur.remove();
+            }
         }
     }
 
@@ -242,6 +248,25 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         }
     }
 
+    private static void initIterStorage() {
+        byte[] v = new byte[100000000];
+        for (int i = 0; i < 100000000; i++) {
+            v[i] = 1;
+        }
+
+        try {
+            iterStorage = ChronicleMapBuilder
+                    .of(String.class, byte[].class)
+                    .name("iter_storage")
+                    .entries(1_000)
+                    .averageKeySize(20)
+                    .averageValue(v)
+                    .createPersistedTo(new File("iter_storage.dat"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     // Function to assign colors to vertices of graph
     private static void colorGraph(MainGraph graph) {
         int N = graph.getNumberVertices() + 1;
@@ -280,35 +305,30 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             colors.set(u, color);
         }
 
-        //System.out.println("colored " + (System.currentTimeMillis() - time) / 1000.0 + "s");
-        //long time1 = System.currentTimeMillis();
-        //TODO
+        System.out.println("colored " + (System.currentTimeMillis() - time) / 1000.0 + "s");
+        long time1 = System.currentTimeMillis();
         neigboursColorsCount = new ArrayList<>(Collections.nCopies(N, N));
 
-//        for (int u = 0; u < N; u++) {
-//            Set<Integer> assigned = new TreeSet<>();
-//            for (int i : graph.getVertexNeighbours(u).getInternalSet()) {
-//                if (colors.get(i) != 0) {
-//                    assigned.add(colors.get(i));
-//                }
-//            }
-//            for (int i : graph.getReversedVertexNeighbours(u).getInternalSet()) {
-//                if (colors.get(i) != 0) {
-//                    assigned.add(colors.get(i));
-//                }
-//            }
-//            neigboursColorsCount.set(u, assigned.size());
-//        }
+        for (int u = 0; u < N; u++) {
+            Set<Integer> assigned = new TreeSet<>();
+            for (int i : graph.getVertexNeighbours(u)) {
+                if (colors.get(i) != 0) {
+                    assigned.add(colors.get(i));
+                }
+            }
+            for (int i : graph.getReversedVertexNeighbours(u).getInternalSet()) {
+                if (colors.get(i) != 0) {
+                    assigned.add(colors.get(i));
+                }
+            }
+            neigboursColorsCount.set(u, assigned.size());
+        }
 
-//        System.out.println("neigboursColorsCount " + (System.currentTimeMillis() - time1) / 1000.0 + "s");
+        System.out.println("neigboursColorsCount " + (System.currentTimeMillis() - time1) / 1000.0 + "s");
 
-//        for (int u = 1; u < N; u++) {
-//            graph.removeLowers(u);
-//        }
         graph.cleanReversedNeighbourhood();
 
         System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");
-        //System.out.println(colors);
     }
 
     public static void countAndSetColors(GraphInner graph) {

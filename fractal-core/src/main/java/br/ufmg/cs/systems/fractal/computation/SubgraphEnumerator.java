@@ -145,16 +145,12 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
       this.prefix.addAll(subgraph.getWords());
       this.lastHasNext = false;
-      this.wordIds = wordIds;
-      this.cur = wordIds.cursor();
+      int[] arr = wordIds.toIntArray();
+      Arrays.sort(arr);
 
-//      if (currElem != -1) {
-//         while(cur.moveNext()) {
-//            if (cur.elem() == currElem) {
-//               break;
-//            }
-//         }
-//      }
+      this.wordIds = new IntArrayList(arr);
+
+      this.cur = this.wordIds.cursor();
 
       this.shouldRemoveLastWord = false;
       this.active = new AtomicBoolean(true);

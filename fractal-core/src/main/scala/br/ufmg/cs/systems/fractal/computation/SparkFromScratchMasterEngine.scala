@@ -330,12 +330,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
           lastStepConsumer = new LastStepConsumer[S]()
 
-          var start = System.currentTimeMillis
-          logWarning("START COMPUTING")
-          val start00 = System.currentTimeMillis
+          val start = System.currentTimeMillis
 
           val ret = processCompute(iter, c)
-          logWarning(s"processCompute time: ${(System.currentTimeMillis - start00) / 1000.0}s; Found ${ret.getResults.size()} vertices.")
+          logWarning(s"processCompute time: ${(System.currentTimeMillis - start) / 1000.0}s; Found ${ret.getResults.size()} vertices.")
 
           val computationTree = new ComputationTree[S](c, null)
 
@@ -343,158 +341,138 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             computationTree.adopt(new ComputationTree[S](computationTree, c.nextComputation(), r))
           }
 
-
           var result = computationTree
           var done = false
           var repeat = false
           val N = c.getConfig.getInteger("top_N", 1)
+
           while (!done) {
 
             val start0 = System.currentTimeMillis
 
             if (result != null && !repeat) {
-              //visit first available child if possible
-              val child = result.visit()
-              if (child == null) {
-                //well, we have no children, go back to parent
-                result.killChildren()
-                var back = true
-                while (result.hasParent && back) {
-                  result = result.parent
-                  val child0 = result.visit()
-                  if (child0 != null) {
-                    result = child0
-                    back = false
-                  }
-                }
-                if (result.parent == null) {
-                  //oh, this is init parent, we have visited all nodes
-                  done = true
-                }
-              } else {
-                //we go deeper, result is child
-                result = child
+              val (r, d) = next_children(result)
+              result = r
+              done = d
+            }
+
+            if (!done && !repeat) {
+              if (result.head.serializedFileIter != "") {
+                //Ok, we have serialized iter and sub
+                val (e, s, ser_time) = read_iter(result.head.serializedFileIter, result.head.serializedFileSub)
+                result.head.enumerator = e
+                result.head.subgraph = s
+
+                logWarning("deser iter:" + s" deser_time: ${ser_time / 1000.0}s; ")
+              }
+
+              if (result.head.vertex != -1) {
+                //Ok, we have only vertex, need to extend
+                iter.maybeRemoveLastWord()
+                val (next_iter, extend_time) = extend(iter, result.head.vertex)
+
+                val ser = System.currentTimeMillis
+                val (iterNew, subgraph) = copyIter(next_iter, iter.getSubgraph)
+                val ser_time = System.currentTimeMillis - ser
+
+                val orphan = new ComputationResult[S](iterNew, subgraph)
+
+                logWarning("one vertex " + result.head.vertex.toString + s" extend_time: ${extend_time / 1000.0}s; copy type: ${ser_time / 1000.0}s;")
+
+                result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
               }
             }
-            if (!done) {
-              if (!repeat) {
-                if (result.head.vertex != -1) {
-                  //Ok, we have only vertex, need to extend
-                  iter.maybeRemoveLastWord()
-                  val (next_iter, extend_time) = extend(iter, result.head.vertex)
-                  val data_path = c.getConfig.getString("dump_path", "")
-                  val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
-                  val orphan = new ComputationResult[S](iterName, subName)
 
-//                  logWarning("one vertex " + result.head.vertex.toString +
-//                    s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s;"
-//                  )
+            val subgraph = result.head.subgraph
+            val saved_iter = result.head.enumerator
 
-                  result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
-                }
+            if (subgraph.getVertices.size() == Refrigerator.size) {
+              Refrigerator.result = subgraph.getVertices :: Refrigerator.result
+              if (Refrigerator.result.size >= N) {
+                done = true
+              }
+              logWarning("FOUND!")
+              repeat = false
+            } else {
+              if (writePath) {
+                logWarning(subgraph.toOutputString + " -- " + saved_iter.getDag.keySet())
+              }
+
+              val nextComp = result.nextComputation
+              nextComp.setSubgraphEnumerator(saved_iter)
+              subgraph.nextExtensionLevel()
+              val results = nextComp.compute(subgraph).getResults
+              subgraph.previousExtensionLevel()
+
+              if (results.length == 1) {
+                //logWarning("results.length == 1")
+                // so here is the logic:
+                // on the previous iteration we checked all candidates, if the results.length == 1, we have only one candidate
+                // so, starting from this point we only need to find first candidate from next candidates
+                // because the number may only falling
+                result.setHead(results.get(0))
+                result.updateId()
+                result.updateLevel()
+
+                repeat = true
                 if (result.head.serializedFileIter != "") {
-                  //Ok, we have serialized iter and sub
-                  val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
-                  val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
-                  result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
-
-                  val subBis = new BufferedInputStream(new FileInputStream(result.head.serializedFileSub))
-                  val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
-                  result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
+                  //Ok, this is the first computation without extension,
+                  //so we have to deserialize
+                  val (e, s, ser_time) = read_iter(result.head.serializedFileIter, result.head.serializedFileSub)
+                  result.head.enumerator = e
+                  result.head.subgraph = s
+                  result.head.enumerator.setGetFirstCandidate(true)
                 }
-              }
-
-              val subgraph = result.head.subgraph
-              val saved_iter = result.head.enumerator
-
-              if (subgraph.getVertices.size() == Refrigerator.size) {
-                Refrigerator.result = subgraph.getVertices :: Refrigerator.result
-                if (Refrigerator.result.size >= N) {
-                  done = true
-                }
-                logWarning("FOUND!")
-                repeat = false
               } else {
-                val nextComp = result.nextComputation
-
-                nextComp.setSubgraphEnumerator(saved_iter)
-
-                subgraph.nextExtensionLevel()
-                logWarning(subgraph.toOutputString + " ---- " + saved_iter.getDag.keySet().toString)
-
-                val results = nextComp.compute(subgraph).getResults
-                subgraph.previousExtensionLevel()
-
-                if (results.length == 1) {
-                  result.setHead(results.get(0))
-
-                  result.updateId()
-                  result.updateLevel()
-                  // so here is the logic:
-                  // on the previous iteration we checked all candidates, if the results.length == 1, we have only one candidate
-                  // so, starting from this point we only need to find first candidate from next candidates
-                  // because the number may only falling
-                  repeat = true
-
-                  if (result.head.serializedFileIter != "") {
-
-                    //Ok, this is the first computation without extension,
-                    //so we have to deserialize
-                    val bis = new BufferedInputStream(new FileInputStream(result.head.serializedFileIter))
-                    val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
-                    result.head.enumerator = SparkConfiguration.deserialize[SubgraphEnumerator[S]](bArray)
-                    result.head.enumerator.setGetFirstCandidate(true)
-
-                    val subBis = new BufferedInputStream(new FileInputStream(result.head.serializedFileSub))
-                    val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
-                    result.head.subgraph = SparkConfiguration.deserialize[S](subbArray)
-                  }
-                } else {
-                  if (results.isEmpty) {
-                    logWarning("|--> X")
-                  }
-                  for (orphan <- results) {
-                    val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
-                    result.adopt(c)
-                  }
-                  repeat = false
+                if (writePath && results.isEmpty) {
+                  logWarning("|--> X")
                 }
-
-                val stepTime = System.currentTimeMillis - start0
-                if (result.level % 100 == 0) {
-                  logWarning(s"handling ${result.id}, level ${result.level}, adding ${results.length}, time: ${stepTime / 1000.0}s; " +
-                    s"extend_time_all: ${extend_time_all / 1000.0}s; ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
+                for (orphan <- results) {
+                  val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
+                  result.adopt(c)
                 }
-                extend_time_all = 0
-                ser_time_all = 0
-                colors_all = 0
-
+                repeat = false
               }
+
+              val stepTime = System.currentTimeMillis - start0
+              if (result.level % 100 == 0) {
+              logWarning(s"handling ${result.id}, level ${result.level}, " +
+                s"time: ${stepTime / 1000.0}s; " +
+                s"extend_time_all: ${extend_time_all / 1000.0}s; " +
+                s"ser_time_all: ${ser_time_all / 1000.0}s; colors: ${colors_all / 1000.0}s;")
+
+                //colors_vertices_all: ${colors_vertices_all}; colors_neighbours_all: ${colors_neighbours_all};")
+              }
+              extend_time_all = 0
+              ser_time_all = 0
+              colors_all = 0
+              colors_vertices_all = 0L
+              colors_neighbours_all = 0L
             }
           }
 
-          var elapsed = System.currentTimeMillis - start
+          val elapsed = System.currentTimeMillis - start
           logInfo(s"WorkStealingMode internal=${config.internalWsEnabled()}" +
             s" external=${config.externalWsEnabled()}")
           logInfo(s"InitialComputation step=${c.getStep}" +
             s" partitionId=${c.getPartitionId} took ${elapsed} ms")
 
-          if (false && config.wsEnabled()) {
-            // setup work-stealing system
-            start = System.currentTimeMillis
-
-            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
-              processCompute(iter, c)
-            }
-
-            val gtagExecutorActor = execEngine.slaveActorRef
-            workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
-            workStealingSys.workStealingCompute(c)
-            elapsed = System.currentTimeMillis - start
-
-            logInfo(s"WorkStealingComputation step=${c.getStep}" +
-              s" partitionId=${c.getPartitionId} took ${elapsed} ms")
-          }
+//          if (false && config.wsEnabled()) {
+//            // setup work-stealing system
+//            start = System.currentTimeMillis
+//
+//            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+//              processCompute(iter, c)
+//            }
+//
+//            val gtagExecutorActor = execEngine.slaveActorRef
+//            workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
+//            workStealingSys.workStealingCompute(c)
+//            elapsed = System.currentTimeMillis - start
+//
+//            logInfo(s"WorkStealingComputation step=${c.getStep}" +
+//              s" partitionId=${c.getPartitionId} took ${elapsed} ms")
+//          }
           val graph = config.getMainGraph[MainGraph[_, _]]()
           graph.closeMap()
           ret
@@ -508,10 +486,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       var extend_time_all = 0L
       var ser_time_all = 0L
       var colors_all = 0L
+      var colors_vertices_all = 0L
+      var colors_neighbours_all = 0L
+      val writePath = false
 
       private def hasNextComputation(iter: SubgraphEnumerator[S], c: Computation[S], nextComp: Computation[S]): ComputationResults[S] = {
-        var cou = 1
-
         val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
         val size = Refrigerator.size - 1
         val states = KClistEnumerator.getColors(graph)
@@ -520,8 +499,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val getOnlyFirst = iter.isGetFirstCandidate
         var found = false
         var extendNeeded = true
+        var cou = 1
 
-        while (iter.hasNext && !(found && getOnlyFirst)) {
+        var firstIter: Array[Byte] = null
+        var firstSub: Array[Byte] = null
+        var next_iter: SubgraphEnumerator[S] = null
+
+        while (!(found && getOnlyFirst) && iter.hasNext) {
           val u = iter.nextElem()
 
           val prefixSize = iter.getSubgraph.getVertices.size()
@@ -546,10 +530,11 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 neigh_colors += states(cursor.elem())
               }
             }
+            colors_neighbours_all += neigh_colors.size
             //k-clique contains k colors
             neigh_colors.distinct.size
           }
-
+          colors_vertices_all += 1
           colors_all += elapsed
 
           val isFirstComputation = maxPossibleSize == 0
@@ -560,36 +545,78 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             if (prefixSize == 0) {
               extendNeeded = false
-            //  KClistEnumerator.writeSizes = true
               Refrigerator.graphCounter += 1
             }
 
+            var ser: Long = 0
+
             if (extendNeeded) {
-              val (next_iter, extend_time) = extend(iter, u)
-                val str = if (!getOnlyFirst) "no ext " else ""
-                logWarning("|--> " +  str + iter.getSubgraph.toOutputString)
+              var wrote = false
+              val (n_i, extend_time) = extend(iter, u)
 
-                val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
+              if (writePath) {
+                val str = if (getOnlyFirst) "only first " else ""
+                logWarning("|--> " + str + iter.getSubgraph.toOutputString)
+              }
+              next_iter = n_i
 
-                result.add(iterName, subName)
+              if (!getOnlyFirst) {
+                if (firstIter == null) {
+                  val time0 = System.currentTimeMillis
 
-//                logWarning("DUMP TO FILE! " + cou.toString + " " +
-//                                s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
-//                )
+                  val (i, s) = iter2bytes(next_iter, iter.getSubgraph)
+                  firstIter = i
+                  firstSub = s
+
+                  ser = System.currentTimeMillis - time0
+                  wrote = true
+                }
+
+                if (!(wrote || getOnlyFirst)) {
+
+                  val (firstIterDeser, firstSubDeser) = bytes2iter(firstIter, firstSub)
+
+                  val (iterName0, subName0, ser_time0) = save_iter(firstIterDeser, firstSubDeser, data_path)
+                  result.add(iterName0, subName0)
+
+                  val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
+                  result.add(iterName, subName)
+
+                  ser_time_all += (ser_time + ser_time0 + ser)
+                  logWarning("dump to file " + cou.toString + " " +
+                    s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+                  )
+                  cou += 1
+                }
+              }
             } else {
-              logWarning(s"Save one vertex: ${u}")
               result.add(u)
             }
-
-            cou += 1
-
           }
         }
-        //KClistEnumerator.writeSizes = false
+
+        if (result.size() == 0 && next_iter != null) {
+          val time0 = System.currentTimeMillis
+
+          next_iter.shouldRemoveLastWord = false
+          next_iter.setGetFirstCandidate(true)
+
+          if (getOnlyFirst) {
+            result.add(next_iter, iter.getSubgraph)
+          } else {
+            //iter.hasNext removes the added vertex, so we have to copy it :(
+            val firstSubDeser = SparkConfiguration.deserialize[S](firstSub)
+            result.add(next_iter, firstSubDeser)
+          }
+
+          val deser = System.currentTimeMillis - time0
+
+          //logWarning(s"copy iter: ${deser / 1000.0}s;")
+        }
         result
       }
 
-      private def extend(iter: SubgraphEnumerator[S], u : Int): (SubgraphEnumerator[S], Long) = {
+      private def extend(iter: SubgraphEnumerator[S], u: Int): (SubgraphEnumerator[S], Long) = {
         val time0 = System.currentTimeMillis
         val next_iter = iter.extend(u)
         val extend_time = System.currentTimeMillis - time0
@@ -597,13 +624,17 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         (next_iter, extend_time)
       }
 
-      private def save_iter(next_iter: SubgraphEnumerator[S], subgraph: Subgraph, data_path : String): (String, String, Long)  = {
+      private def save_iter(next_iter: SubgraphEnumerator[S], subgraph: S, data_path: String): (String, String, Long) = {
+
         val ser = System.currentTimeMillis
 
-        val iterB = SparkConfiguration.serialize(next_iter)
-        val subB = SparkConfiguration.serialize(subgraph)
+        val (iterB, subB) = iter2bytes(next_iter, subgraph)
+
         val iterFile = File.createTempFile("iter", "", new File(data_path))
         val subFile = File.createTempFile("sub", "", new File(data_path))
+        //KClistEnumerator.addIter(iterFile.getCanonicalPath, iterB)
+        //KClistEnumerator.addIter(subFile.getCanonicalPath, subB)
+
         Files.write(Paths.get(iterFile.getCanonicalPath), iterB)
         Files.write(Paths.get(subFile.getCanonicalPath), subB)
 
@@ -611,6 +642,74 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         ser_time_all += ser_time
 
         (iterFile.getCanonicalPath, subFile.getCanonicalPath, ser_time)
+      }
+
+      private def iter2bytes(next_iter: SubgraphEnumerator[S], subgraph: S): (Array[Byte], Array[Byte]) = {
+        val iterB = SparkConfiguration.serialize(next_iter)
+        val subB = SparkConfiguration.serialize(subgraph)
+        (iterB, subB)
+      }
+
+      private def bytes2iter(iterB: Array[Byte], subB: Array[Byte]): (SubgraphEnumerator[S], S) = {
+        val iter = SparkConfiguration.deserialize[SubgraphEnumerator[S]](iterB)
+        val subgraph = SparkConfiguration.deserialize[S](subB)
+
+        (iter, subgraph)
+      }
+
+      private def copyIter(next_iter: SubgraphEnumerator[S], subgraph: S): (SubgraphEnumerator[S], S) = {
+        val (iterB, subB) = iter2bytes(next_iter, subgraph)
+        bytes2iter(iterB, subB)
+      }
+
+      private def read_iter(iter_path: String, sub_path: String): (SubgraphEnumerator[S], S, Long) = {
+        val ser = System.currentTimeMillis
+
+        val bis = new BufferedInputStream(new FileInputStream(iter_path))
+        val subBis = new BufferedInputStream(new FileInputStream(sub_path))
+
+        val bArray = Stream.continually(bis.read).takeWhile(-1 !=).map(_.toByte).toArray
+        val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
+
+        //val subbArray = KClistEnumerator.getIter(sub_path)
+        //val bArray = KClistEnumerator.getIter(iter_path)
+
+        val (iter, subgraph) = bytes2iter(bArray, subbArray)
+
+        val ser_time = System.currentTimeMillis - ser
+        ser_time_all += ser_time
+
+        (iter, subgraph, ser_time)
+      }
+
+      private def next_children(current: ComputationTree[S]): (ComputationTree[S], Boolean) = {
+        var result = current
+        var done = false
+
+        //visit first available child if possible
+        val child = result.visit()
+        if (child == null) {
+          //well, we have no children, go back to parent
+          result.killChildren()
+          var back = true
+          while (result.hasParent && back) {
+            result = result.parent
+            val child0 = result.visit()
+            if (child0 != null) {
+              result = child0
+              back = false
+            }
+          }
+          if (result.parent == null) {
+            //oh, this is init parent, we have visited all nodes
+            done = true
+          }
+        } else {
+          //we go deeper, result is child
+          result = child
+        }
+
+        (result, done)
       }
 
       private def lastComputation(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
