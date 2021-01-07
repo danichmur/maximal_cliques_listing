@@ -192,6 +192,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         count++;
 
         IntArrayList orderedVertices = graph.getVertexNeighbours(u);
+        //in case this is not first computation for this iter
+        dag.clear();
 
         dag.ensureCapacity(orderedVertices.size());
         IntCursor cur0 = orderedVertices.cursor();
@@ -274,14 +276,20 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         long time = System.currentTimeMillis();
 
         colors = new ArrayList<>(Collections.nCopies(N, 0));
+        List<Integer> idx = new ArrayList<>(N);
+        List<Integer> degrees = new ArrayList<>(N);
+        for (int u = 0; u < N; u++) {
+            idx.add(u);
+            degrees.add(-(graph.getVertexNeighbours(u).size() + graph.getReversedVertexNeighbours(u).size()));
+        }
+        idx.sort(Comparator.comparing(degrees::get));
 
         for (int u = 0; u < N; u++) {
             Set<Integer> assigned = new TreeSet<>();
-            IntArrayList neigh = graph.getVertexNeighbours(u);
+            IntArrayList neigh = graph.getVertexNeighbours(idx.get(u));
             if (neigh == null) {
                 continue;
             }
-           // System.out.println(u + " " + neigh.getInternalSet());// + " " + graph.getReversedVertexNeighbours(u).getInternalSet());
 
             for (int i : neigh) {
                 if (colors.get(i) != 0) {
@@ -289,7 +297,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
                 }
             }
 
-            for (int i : graph.getReversedVertexNeighbours(u).getInternalSet()) {
+            for (int i : graph.getReversedVertexNeighbours(idx.get(u)).getInternalSet()) {
                 if (colors.get(i) != 0) {
                     assigned.add(colors.get(i));
                 }
@@ -302,30 +310,31 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
                 }
                 color++;
             }
-            colors.set(u, color);
+            colors.set(idx.get(u), color);
         }
 
         System.out.println("colored " + (System.currentTimeMillis() - time) / 1000.0 + "s");
+        System.out.println("Max color: " + Collections.max(colors));
+
         long time1 = System.currentTimeMillis();
         neigboursColorsCount = new ArrayList<>(Collections.nCopies(N, N));
 
         for (int u = 0; u < N; u++) {
             Set<Integer> assigned = new TreeSet<>();
-            for (int i : graph.getVertexNeighbours(u)) {
+            for (int i : graph.getVertexNeighbours(idx.get(u))) {
                 if (colors.get(i) != 0) {
                     assigned.add(colors.get(i));
                 }
             }
-            for (int i : graph.getReversedVertexNeighbours(u).getInternalSet()) {
+            for (int i : graph.getReversedVertexNeighbours(idx.get(u)).getInternalSet()) {
                 if (colors.get(i) != 0) {
                     assigned.add(colors.get(i));
                 }
             }
-            neigboursColorsCount.set(u, assigned.size());
+            neigboursColorsCount.set(idx.get(u), assigned.size());
         }
 
         System.out.println("neigboursColorsCount " + (System.currentTimeMillis() - time1) / 1000.0 + "s");
-
         graph.cleanReversedNeighbourhood();
 
         System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s");

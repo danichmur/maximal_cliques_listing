@@ -346,15 +346,22 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           var repeat = false
           val N = c.getConfig.getInteger("top_N", 1)
 
-          while (!done) {
-
-            val start0 = System.currentTimeMillis
-
-            if (result != null && !repeat) {
+          val repeatLoop = () => {
+            if (done) {
+              false
+            } else if (result != null && !repeat) {
               val (r, d) = next_children(result)
               result = r
               done = d
+              !done
+            } else {
+              true
             }
+          }
+
+          while (repeatLoop()) {
+
+            val start0 = System.currentTimeMillis
 
             if (!done && !repeat) {
               if (result.head.serializedFileIter != "") {
@@ -363,7 +370,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 result.head.enumerator = e
                 result.head.subgraph = s
 
-                logWarning("deser iter:" + s" deser_time: ${ser_time / 1000.0}s; ")
+                logWarning(s"deser iter: ${result.id} " +  s.getVertices.toString + s" deser_time: ${ser_time / 1000.0}s; ")
               }
 
               if (result.head.vertex != -1) {
@@ -374,7 +381,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 val ser = System.currentTimeMillis
                 val (iterNew, subgraph) = copyIter(next_iter, iter.getSubgraph)
                 val ser_time = System.currentTimeMillis - ser
-
                 val orphan = new ComputationResult[S](iterNew, subgraph)
 
                 logWarning("one vertex " + result.head.vertex.toString + s" extend_time: ${extend_time / 1000.0}s; copy type: ${ser_time / 1000.0}s;")
@@ -429,6 +435,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 }
                 for (orphan <- results) {
                   val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
+
                   result.adopt(c)
                 }
                 repeat = false
@@ -574,15 +581,20 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
                 if (!(wrote || getOnlyFirst)) {
 
-                  val (firstIterDeser, firstSubDeser) = bytes2iter(firstIter, firstSub)
+                  var ser_time0_first : Long = 0
+                  if (firstIter != null) {
+                    val (firstIterDeser, firstSubDeser) = bytes2iter(firstIter, firstSub)
 
-                  val (iterName0, subName0, ser_time0) = save_iter(firstIterDeser, firstSubDeser, data_path)
-                  result.add(iterName0, subName0)
+                    val (iterName0, subName0, ser_time0) = save_iter(firstIterDeser, firstSubDeser, data_path)
+                    result.add(iterName0, subName0)
+                    ser_time0_first = ser_time0
 
+                    firstIter = null
+                  }
                   val (iterName, subName, ser_time) = save_iter(next_iter, iter.getSubgraph, data_path)
                   result.add(iterName, subName)
 
-                  ser_time_all += (ser_time + ser_time0 + ser)
+                  ser_time_all += (ser_time + ser_time0_first + ser)
                   logWarning("dump to file " + cou.toString + " " +
                     s" extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
                   )
