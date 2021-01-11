@@ -28,7 +28,7 @@ object Refrigerator {
   var result : List[IntArrayList] = List.empty
   var neigh_sizes : util.List[Integer] = _
 
-  var idx : Int = 1
+  var idx : Int = 0
 
   var size : Int = 0
 

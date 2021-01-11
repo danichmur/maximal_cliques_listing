@@ -70,4 +70,5 @@ public interface Subgraph extends WritableObject, Externalizable {
           AtomicBitSetArray vtag, AtomicBitSetArray etag, int pos);
 
     HashIntObjMap cacheStore();
+
 }

@@ -108,6 +108,11 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       // empty by default
    }
 
+   public void clearDag() {
+
+   }
+
+
    /**
     * This method is used to generate the set of extensions in preparation for
     * extension routines.

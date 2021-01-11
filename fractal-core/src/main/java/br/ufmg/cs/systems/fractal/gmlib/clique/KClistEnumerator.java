@@ -270,7 +270,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         return dag;
     }
 
-    private void clearDag() {
+    @Override
+    public void clearDag() {
         dag.forEach(dagCleaner);
         dag.clear();
     }

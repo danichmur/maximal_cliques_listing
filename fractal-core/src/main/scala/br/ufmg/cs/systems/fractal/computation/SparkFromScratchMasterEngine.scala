@@ -319,42 +319,40 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
 
           var foundedCliques = Refrigerator.result.size
-          var first = true
 
           val repeatOrClean = () => {
             var continue = true
-            if (first) {
-              first = false
+            if (Refrigerator.result.size == N) {
+              continue = false
+            } else if (Refrigerator.result.size > foundedCliques) {
+              //aha, we got new cliques!
+              foundedCliques = Refrigerator.result.size
+
+              val start = System.currentTimeMillis
+              graph.removeCliques(Refrigerator.result)
+              logWarning(s"removeCliques time: ${(System.currentTimeMillis - start) / 1000.0}s;")
+
+              KClistEnumerator.dropColors()
             } else {
-              if (Refrigerator.result.size == N) {
-                continue = false
-              } else if (Refrigerator.result.size > foundedCliques) {
-                //aha, we got new cliques!
-                foundedCliques = Refrigerator.result.size
+              //well, there are no cliques, reduce clique size and try again
+              Refrigerator.inc()
 
-                val start = System.currentTimeMillis
-                graph.removeCliques(Refrigerator.result)
-                logWarning(s"removeCliques time: ${(System.currentTimeMillis - start) / 1000.0}s;")
-
-                KClistEnumerator.dropColors()
-              } else {
-                //well, there are no cliques, reduce clique size and try again
-                Refrigerator.inc()
-
-              }
             }
+            if (continue) {
+              iter.clearDag()
+              iter.resetCursor()
 
-            KClistEnumerator.getColors(graph)
-            Refrigerator.neigh_sizes = KClistEnumerator.neigboursSizes
-            Refrigerator.size = Refrigerator.neigh_sizes.get(Refrigerator.neigh_sizes.size - Refrigerator.idx) + 1
-            logWarning("Refrigerator.size: " + Refrigerator.size.toString)
-            KClistEnumerator.size = Refrigerator.size
+              KClistEnumerator.getColors(graph)
+              Refrigerator.neigh_sizes = KClistEnumerator.neigboursSizes
+              Refrigerator.size = Refrigerator.neigh_sizes.get(Refrigerator.neigh_sizes.size - Refrigerator.idx) + 1
+              logWarning(s"Refrigerator size: ${Refrigerator.size.toString}; iter ${iter.getDag.keySet()}; sub ${iter.getSubgraph.getNumVertices}")
+
+              KClistEnumerator.size = Refrigerator.size
+            }
 
             if (Refrigerator.size < 4) {
               continue = false
             }
-
-            iter.resetCursor()
             continue
           }
 
