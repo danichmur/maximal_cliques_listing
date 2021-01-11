@@ -35,6 +35,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
    protected IntCursor cur;
 
    public boolean shouldRemoveLastWord;
+   public boolean extend = true;
 
    private AtomicBoolean active;
    private boolean frozen;
@@ -226,7 +227,8 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
                   return true;
                }
             }
-            active.set(false);
+            //TODO
+            //active.set(false);
          } else {
             maybeRemoveLastWord();
          }
@@ -267,6 +269,13 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    public IntCollection getWordIds() {
       return wordIds;
+   }
+
+   public void resetCursor() {
+      this.cur = wordIds.cursor();
+      this.currElem = -1;
+      shouldRemoveLastWord = true;
+      maybeRemoveLastWord();
    }
 
    @Override

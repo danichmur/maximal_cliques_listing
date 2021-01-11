@@ -5,6 +5,8 @@ import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
 import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.collection.ReclaimableIntCollection;
 import com.koloboke.collect.IntCollection;
+
+import java.util.List;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
@@ -73,5 +75,7 @@ public interface MainGraph<V,E> {
     void removeLowers(int i);
 
     void closeMap();
+
+    void removeCliques(List<IntArrayList> cliques);
 
 }

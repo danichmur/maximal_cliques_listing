@@ -2,11 +2,13 @@ package br.ufmg.cs.systems.fractal.graph;
 
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
 import br.ufmg.cs.systems.fractal.util.collection.IntSet;
+import com.koloboke.collect.IntCursor;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 import org.apache.commons.io.input.BOMInputStream;
 
 import java.io.*;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.StringTokenizer;
 
 public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
@@ -118,6 +120,52 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
          vertexNeighbourhood.sort();
          mainGraph.put(i, vertexNeighbourhood);
       }
+   }
+
+   @Override
+   public void removeCliques(List<IntArrayList> cliques) {
+      for (IntArrayList clique : cliques) {
+         for (int i = 0; i < clique.size(); i++) {
+            int from = clique.getUnchecked(i);
+            IntArrayList vertexNeighbourhood = mainGraph.get(from);
+            if (vertexNeighbourhood != null) {
+               IntArrayList vertexNeighbourhoodNew = new IntArrayList();
+               IntCursor c = vertexNeighbourhood.cursor();
+               while (c.moveNext()) {
+                  if (!clique.contains(c.elem())) {
+                     vertexNeighbourhoodNew.add(c.elem());
+                  }
+               }
+               mainGraph.put(from, vertexNeighbourhoodNew);
+            }
+            //TODO : rebuild ReversedVertexNeighbours?
+            IntSet s = getReversedVertexNeighbours(from);
+            IntCursor cSet = s.getInternalSet().cursor();
+            while (cSet.moveNext()) {
+               if (clique.contains(cSet.elem())) {
+                  cSet.remove();
+               }
+            }
+         }
+      }
+
+// TODO rebuild state?
+
+//      ensureCanStoreNewVertices(numVertices);
+//
+//      for (int i : mainGraph.keySet()) {
+//         IntArrayList vertexNeighbourhood = mainGraph.get(i);
+//         IntCursor c = vertexNeighbourhood.cursor();
+//         while (c.moveNext()) {
+//            Edge edge = createEdge(i, c.elem());
+//            VertexNeighbourhood vertexNeighbourhood1 = vertexNeighborhoods[edge.getDestinationId()];
+//            if (vertexNeighbourhood1 == null) {
+//               vertexNeighbourhood1 = createVertexNeighbourhood();
+//               vertexNeighborhoods[edge.getDestinationId()] = vertexNeighbourhood1;
+//            }
+//            vertexNeighbourhood1.addEdge(edge.getSourceId(), edge.getEdgeId());
+//         }
+//      }
    }
 
    @Override

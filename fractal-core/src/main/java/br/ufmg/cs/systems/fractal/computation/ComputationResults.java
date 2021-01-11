@@ -40,6 +40,10 @@ public class ComputationResults<S extends Subgraph> {
         results.add(new ComputationResult<>(enumerator, subgraph));
     }
 
+    public void add(S subgraph) {
+        results.add(new ComputationResult<>(subgraph));
+    }
+
     public void add(String serializedFileIter, String serializedFileSub) {
         results.add(new ComputationResult<>(serializedFileIter, serializedFileSub));
     }

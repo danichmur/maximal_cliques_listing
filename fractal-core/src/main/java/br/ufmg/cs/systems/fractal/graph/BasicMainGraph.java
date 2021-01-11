@@ -13,6 +13,7 @@ import com.koloboke.collect.map.IntObjMap;
 import com.koloboke.collect.map.hash.HashIntIntMaps;
 
 import java.io.*;
+import java.util.List;
 import java.util.function.IntConsumer;
 
 import com.koloboke.collect.map.hash.HashIntObjMaps;
@@ -976,6 +977,11 @@ public class BasicMainGraph<V, E> implements MainGraph<V, E> {
     @Override
     public void closeMap() {
         mainGraph.close();
+    }
+
+    @Override
+    public void removeCliques(List<IntArrayList> cliques) {
+
     }
 
 }

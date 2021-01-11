@@ -26,6 +26,9 @@ object Refrigerator {
   var graphCounter : Int = 0
 
   var result : List[IntArrayList] = List.empty
+  var neigh_sizes : util.List[Integer] = _
+
+  var idx : Int = 1
 
   var size : Int = 0
 
@@ -147,5 +150,10 @@ object Refrigerator {
   def close(): Unit = {
     frozenMap.close()
   }
+
+  def inc(): Unit = {
+    idx += 1
+  }
+
 
 }

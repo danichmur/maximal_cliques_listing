@@ -313,7 +313,8 @@ case class Fractoid[S <: Subgraph : ClassTag](
   }
 
   def setNew(explorationSteps: Int): Unit = {
-    Refrigerator.size = explorationSteps
+    //Refrigerator.size = explorationSteps
+    Refrigerator.inc()
   }
 
   def explore(n: Int): Fractoid[S] = {

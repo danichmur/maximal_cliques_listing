@@ -12,7 +12,8 @@ case class CliquesList(
                         explorationSteps: Int,
                         readyCliques: List[Set[Int]],
                         dataPath : String,
-                        N : Int
+                        N : Int,
+                        inc : Boolean
                       ) extends FractalSparkApp {
 
   var foundedCliques : (List[Set[Int]], List[Set[Int]]) = (List(), List())
@@ -31,7 +32,10 @@ case class CliquesList(
       set ("num_partitions", numPartitions).
       set ("dump_path", dataPath).
       set ("top_N", N)
-    testF.setNew(explorationSteps)
+//    if (inc) {
+//      testF.setNew(explorationSteps)
+//    }
+
     val cliquesRes = testF.explore(explorationSteps)
 
     val (_, elapsed) = FractalSparkRunner.time {cliquesRes.compute()}
@@ -58,24 +62,24 @@ object MaximalCliquesListing extends Logging {
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
-    //conf.set("spark.executor.heartbeatInterval", "1s")
     //conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-
-    // TODO kcore? for 4800 max color is 4801
 
     //val (s, graphPath) = (22, "/Users/danielmuraveyko/Downloads/brock400-4/brock400-4.mtx")
 
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els/for_kcore_0")
     //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/00test.txt")
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els2/01test.txt")
+    //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/02test.txt")
     val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
+    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/22_test.txt")
+
+
     //val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
     //val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
-    //val (s, graphPath) = (12002, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
+    //val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
 
     val time = System.currentTimeMillis()
-    //val colorTime = CFLVertexColoring.countAndSetColors(graphPath)
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
@@ -95,25 +99,26 @@ object MaximalCliquesListing extends Logging {
     var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
 
-    val addCliques = (steps : Int, N : Int) => {
-      val app = CliquesList(fractalGraph, steps, cliquesIdx, dataPath, N)
+    val addCliques = (steps : Int, N : Int, inc : Boolean) => {
+      val app = CliquesList(fractalGraph, steps, cliquesIdx, dataPath, N, inc)
       val (subgraphs, original_cliques) = app.findCliques()
       cliques = cliques ++ original_cliques
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
     val topN = 5
-    addCliques(s, topN)
 
-    logWarning("extends: " + KClistEnumerator.count.toString)
+    addCliques(s, topN, true)
+
+    logWarning(s"extends: ${KClistEnumerator.count}; dumps: ${KClistEnumerator.dumps}; loads: ${KClistEnumerator.loads}")
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
     for (r <- Refrigerator.result) {
-      //println(r)
+      println(r)
       println(r.size())
     }
-
     cleanDataFolder(dataPath)
+
     val f = new java.io.File("map.dat")
     f.delete()
 
