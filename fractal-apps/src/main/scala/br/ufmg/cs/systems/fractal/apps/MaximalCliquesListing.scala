@@ -110,7 +110,7 @@ object MaximalCliquesListing extends Logging {
 
     addCliques(s, topN, true)
 
-    logWarning(s"extends: ${KClistEnumerator.count}; dumps: ${KClistEnumerator.dumps}; loads: ${KClistEnumerator.loads}")
+    logWarning(s"graphs: ${KClistEnumerator.graphCounter}; extends: ${KClistEnumerator.count}; dumps: ${KClistEnumerator.dumps}; loads: ${KClistEnumerator.loads}; rebuilds: ${KClistEnumerator.rebuilds}")
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
     for (r <- Refrigerator.result) {

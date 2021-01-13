@@ -302,7 +302,6 @@ case class Fractoid[S <: Subgraph : ClassTag](
       case _ => None
     }
 
-    logWarning("graphs: " + Refrigerator.graphCounter)
     idx.map(x => x.flatMap((v: Any) => toIntIdx(v)))
   }
 

@@ -372,7 +372,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             val start = System.currentTimeMillis
 
             val ret = processCompute(iter, c)
-            logWarning(s"processCompute time: ${(System.currentTimeMillis - start) / 1000.0}s; Found ${ret.getResults.size()} vertices.")
+            logWarning(s"processCompute time: ${(System.currentTimeMillis - start) / 1000.0}s")
 
             val computationTree = new ComputationTree[S](c, null)
 
@@ -451,7 +451,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
                   val (e, time) = sub2iter(c, subgraph)
                   saved_iter = e
-
+                  KClistEnumerator.rebuilds += 1
                   logWarning(s"${result.head.getResultType} (rebuild subgraph and iter); size: ${subgraph.getVertices.size}; dag size: ${e.getDag.size}; rebuild time: ${time / 1000.0}s; id: ${result.id}")
                 }
               }
@@ -475,6 +475,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   // so, starting from this point we only need to find first candidate from next candidates
                   // because the number may only falling
                   result.setHead(results.get(0))
+                  result.updateId()
+                  result.updateLevel()
+                  repeat = true
+
                   //check if we already have a clique
                   val s = result.head.subgraph
                   val dag = result.head.enumerator.getDag
@@ -486,12 +490,12 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                         s.addWord(i)
                       }
                       addClique(s)
+                      repeat = false
                     }
-                  } else {
-                    result.updateId()
-                    result.updateLevel()
-                    repeat = true
                   }
+
+
+
                 } else {
                   if (writePath && results.isEmpty) {
                     logWarning("|--> X")
@@ -623,7 +627,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             if (prefixSize == 0) {
               extendNeeded = false
-              Refrigerator.graphCounter += 1
+              KClistEnumerator.graphCounter += 1
             }
 
             var ser: Long = 0
@@ -688,7 +692,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                     //result.add(subgraph)
                     result.add(u, false)
 
-                    dump_msg = s"add new vertex "
+                    dump_msg = s"add vertex "
                   }
 
                   ser_time_all += (ser_time + ser_time0_first + ser)
@@ -723,10 +727,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           //logWarning(s"copy iter: ${deser / 1000.0}s;")
         }
         iter.extend = true
-
-        logWarning(s"Length: ${result.size()}")
+        if (result.size() > 0) logWarning(s"Length: ${result.size()}")
         if (log != "") logWarning(log)
-
         result
       }
 

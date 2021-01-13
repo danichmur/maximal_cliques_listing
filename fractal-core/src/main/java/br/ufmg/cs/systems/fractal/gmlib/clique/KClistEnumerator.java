@@ -33,8 +33,10 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     public static int count = 0;
     public static int size = 1;
 
-    public static int dumps = 1;
-    public static int loads = 1;
+    public static int dumps = 0;
+    public static int loads = 0;
+    public static int rebuilds = 0;
+    public static int graphCounter = 0;
 
     public static int EXTENDS_THRESHOLD = 106;
 
@@ -145,6 +147,8 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
     @Override
     public SubgraphEnumerator<S> extend(int u) {
+        count++;
+
         KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.getSubgraphEnumerator();
         if (!extend) {
             subgraph.addWord(u);
@@ -155,7 +159,6 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         //nextEnumerator.clearDag();
 
         if (subgraph.getNumWords() == 0) {
-            count++;
             extendFromGraph(subgraph.getConfig().getMainGraph(), nextEnumerator.dag, u);
         } else {
             extendFromDag(dag, nextEnumerator.dag, u);
@@ -185,9 +188,6 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
      * @param u vertex being added to the current subgraph
      */
     private void extendFromDag(IntObjMap<IntArrayList> currentDag, IntObjMap<IntArrayList> dag, int u) {
-
-        count++;
-
         IntArrayList orderedVertices = currentDag.get(u);
 
         if (orderedVertices == null) {
