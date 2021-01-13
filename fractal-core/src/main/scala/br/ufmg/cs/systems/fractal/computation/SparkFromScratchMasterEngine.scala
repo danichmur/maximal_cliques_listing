@@ -431,28 +431,28 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   saved_iter = e
                   subgraph = s
 
-                  logWarning(s"${result.head.getResultType} (extend ${result.head.vertex}); extend_time: ${extend_time / 1000.0}s; copy iter: ${ser_time / 1000.0}s; id: ${result.id}")
+                  logWarning(s"extend ${result.head.vertex}; extend_time: ${extend_time / 1000.0}s; copy iter: ${ser_time / 1000.0}s; id: ${result.id}")
                   result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
                 } else if (result.head.getResultType == ResultType.SUBGRAPH) {
                   //Ok, we have subgraph, rebuild iter
-                  val set = new IntArrayList()
-
-                  set.add(result.head.vertex)
+                  val vertices = ListBuffer.empty[Int]
+                  vertices += result.head.vertex
                   var p = result.parent
-                  while (p.head.getResultType != ResultType.REGULAR) {
-                    set.add(p.head.vertex)
+                  while (p.head != null && p.head.getResultType != ResultType.REGULAR) {
+                    vertices += p.head.vertex
                     p = p.parent
                   }
-                  subgraph = SparkConfiguration.deserialize[S](SparkConfiguration.serialize(p.head.subgraph))
-                  val cur = set.cursor()
-                  while (cur.moveNext()) {
-                    subgraph.addWord(cur.elem())
+                  subgraph = if (p.head != null) {
+                    SparkConfiguration.deserialize[S](SparkConfiguration.serialize(p.head.subgraph))
+                  } else {
+                    SparkConfiguration.deserialize[S](SparkConfiguration.serialize(iter.getSubgraph))
                   }
+                  vertices.reverseIterator.foreach(v => subgraph.addWord(v))
 
                   val (e, time) = sub2iter(c, subgraph)
                   saved_iter = e
                   KClistEnumerator.rebuilds += 1
-                  logWarning(s"${result.head.getResultType} (rebuild subgraph and iter); size: ${subgraph.getVertices.size}; dag size: ${e.getDag.size}; rebuild time: ${time / 1000.0}s; id: ${result.id}")
+                  logWarning(s"rebuild subgraph and iter; size: ${subgraph.getVertices.size}; dag size: ${e.getDag.size}; rebuild time: ${time / 1000.0}s; id: ${result.id}")
                 }
               }
 
@@ -578,13 +578,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val data_path = c.getConfig.getString("dump_path", "")
         val getOnlyFirst = iter.isGetFirstCandidate
         var found = false
-        var extendNeeded = true
-
-        var firstIter: Array[Byte] = null
-        var firstSub: Array[Byte] = null
-        var firstIterSaved = false
-        var next_iter: SubgraphEnumerator[S] = null
-
+        var extendNeeded = iter.getSubgraph.getNumVertices > KClistEnumerator.EXTENDS_THRESHOLD
         var log = ""
 
         while (!(found && getOnlyFirst) && iter.hasNext) {
@@ -630,101 +624,42 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               KClistEnumerator.graphCounter += 1
             }
 
-            var ser: Long = 0
-
             if (extendNeeded) {
-              var wrote = false
-              val (n_i, extend_time) = extend(iter, u)
+              val (next_iter, extend_time) = extend(iter, u)
+
+              var ser_time: Long = 0
+              val (iterName, subName, s) = save_iter(next_iter, iter.getSubgraph, data_path)
+              ser_time = s
+              result.add(iterName, subName)
+              KClistEnumerator.dumps += 1
+
+              ser_time_all += ser_time
 
               if (writePath) {
                 val str = if (getOnlyFirst) "only first " else ""
-                logWarning("|--> " + str + iter.getSubgraph.toOutputString)
+                logWarning("|--> " + str + u.toString)
               }
-              next_iter = n_i
 
-              if (!getOnlyFirst) {
-                if (!firstIterSaved && firstIter == null) {
-                  iter.extend = false
-                  val time0 = System.currentTimeMillis
-
-                  val (i, s) = iter2bytes(next_iter, iter.getSubgraph)
-                  firstIter = i
-                  firstSub = s
-
-                  ser = System.currentTimeMillis - time0
-                  wrote = true
-                }
-
-                if (!(wrote || getOnlyFirst)) {
-                  var ser_time0_first : Long = 0
-                  val savedFirst = if (firstIter != null) "+saved first; " else ""
-                  val extended = if (iter.extend) "" else "+no extend; "
-
-                  if (firstIter != null) {
-
-                    if (iter.getSubgraph.getNumVertices > KClistEnumerator.EXTENDS_THRESHOLD) {
-                      //todo no need
-                      val (firstIterDeser, firstSubDeser) = bytes2iter(firstIter, firstSub)
-
-                      val (iterName0, subName0, ser_time0) = save_iter(firstIterDeser, firstSubDeser, data_path)
-                      result.add(iterName0, subName0)
-                      ser_time0_first = ser_time0
-                    } else {
-                      //val subgraph = SparkConfiguration.deserialize[S](firstSub)
-                      //result.add(subgraph)
-                      result.add(u, false)
-                    }
-                    firstIterSaved = true
-                    firstIter = null
-                  }
-
-                  var ser_time: Long = 0
-                  var dump_msg = ""
-                  if (iter.getSubgraph.getNumVertices > KClistEnumerator.EXTENDS_THRESHOLD) {
-                    val (iterName, subName, s) = save_iter(next_iter, iter.getSubgraph, data_path)
-                    ser_time = s
-                    result.add(iterName, subName)
-                    KClistEnumerator.dumps += 1
-                    dump_msg = s"dump to file ${KClistEnumerator.dumps.toString} "
-                  } else {
-                    //val subB = SparkConfiguration.serialize(iter.getSubgraph)
-                    //val subgraph = SparkConfiguration.deserialize[S](subB)
-                    //result.add(subgraph)
-                    result.add(u, false)
-
-                    dump_msg = s"add vertex "
-                  }
-
-                  ser_time_all += (ser_time + ser_time0_first + ser)
-
-                  log += s"\n$dump_msg$savedFirst$extended dag size: ${iter.getDag.size}; sub size: ${iter.getSubgraph.getVertices.size()}" +
-                    s"; extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
-
-                }
-              }
+              log += s"\n$u: dump to file ${KClistEnumerator.dumps.toString} dag size: ${iter.getDag.size}; sub size: ${iter.getSubgraph.getVertices.size()}" +
+                s"; extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
             } else {
-              result.add(u, true)
+              log += s"\n$u: add vertex"
+              result.add(u, prefixSize == 0)
             }
           }
         }
 
-        if (result.size() == 0 && next_iter != null) {
-          val time0 = System.currentTimeMillis
-
+        if (result.size() == 1 && !extendNeeded) {
+          //let's extend, because we have only one appropriate vertex
+          val (next_iter, extend_time) = extend(iter, result.get(0).vertex)
+          log += s"\nonly one! extend_time: ${extend_time / 1000.0}s"
+          result.get(0).reset()
           next_iter.shouldRemoveLastWord = false
           next_iter.setGetFirstCandidate(true)
-
-          if (getOnlyFirst) {
-            result.add(next_iter, iter.getSubgraph)
-          } else {
-            //iter.hasNext removes the added vertex, so we have to copy it :(
-            val firstSubDeser = SparkConfiguration.deserialize[S](firstSub)
-            result.add(next_iter, firstSubDeser)
-          }
-
-          val deser = System.currentTimeMillis - time0
-
-          //logWarning(s"copy iter: ${deser / 1000.0}s;")
+          result.get(0).enumerator = next_iter
+          result.get(0).subgraph = SparkConfiguration.deserialize[S](SparkConfiguration.serialize(iter.getSubgraph))
+        } else {
+         //TODO getOnlyFirst ?????/
         }
         iter.extend = true
         if (result.size() > 0) logWarning(s"Length: ${result.size()}")

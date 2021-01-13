@@ -69,7 +69,7 @@ object MaximalCliquesListing extends Logging {
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els/for_kcore_0")
     //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/00test.txt")
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els2/01test.txt")
-    //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/02test.txt")
+   // val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/02test.txt")
     val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/127_test.txt")
@@ -83,26 +83,16 @@ object MaximalCliquesListing extends Logging {
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
-
     val fc = new FractalContext(sc)
-
     logWarning(sc.uiWebUrl.getOrElse(""))
-
     val fractalGraph = fc.textFile(graphPath, graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph")
-
-    //TODO: if a graph can be colored with k colors, then the maximum clique in this graph must be smaller or equal to k
-    //var explorationSteps = kcore.head
-
     val dataPath = "/Users/danielmuraveyko/maximal_cliques_listing/my_data/"
 
-
-    var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
 
     val addCliques = (steps : Int, N : Int, inc : Boolean) => {
       val app = CliquesList(fractalGraph, steps, cliquesIdx, dataPath, N, inc)
       val (subgraphs, original_cliques) = app.findCliques()
-      cliques = cliques ++ original_cliques
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
