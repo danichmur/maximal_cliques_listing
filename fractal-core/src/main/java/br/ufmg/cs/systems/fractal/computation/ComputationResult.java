@@ -22,25 +22,35 @@ public class ComputationResult<S extends Subgraph> {
     private ResultType resultType;
 
     ComputationResult(SubgraphEnumerator<S> enumerator, S subgraph) {
+        //System.out.println("ResultType.REGULAR");
         resultType = ResultType.REGULAR;
         this.enumerator = enumerator;
         this.subgraph = subgraph;
     }
 
     ComputationResult(S subgraph) {
+        //System.out.println("ResultType.SUBGRAPH");
         resultType = ResultType.SUBGRAPH;
         this.subgraph = subgraph;
     }
 
     ComputationResult(String serializedFileIter, String serializedFileSub) {
+        //System.out.println("ResultType.SERIALIZED");
         resultType = ResultType.SERIALIZED;
         this.serializedFileIter = serializedFileIter;
         this.serializedFileSub = serializedFileSub;
     }
 
-    ComputationResult(int v) {
-        resultType = ResultType.VERTEX;
-        vertex = v;
+    ComputationResult(int v, boolean first) {
+        if (first) {
+            //System.out.println("ResultType.VERTEX");
+            resultType = ResultType.VERTEX;
+            vertex = v;
+        } else {
+            //System.out.println("ResultType.SUBGRAPH ONE");
+            resultType = ResultType.SUBGRAPH;
+            vertex = v;
+        }
     }
 
     void reset() {

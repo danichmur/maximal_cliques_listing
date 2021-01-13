@@ -53,7 +53,6 @@ object Refrigerator {
     frozenMap = ChronicleMap
       .of(classOf[Integer], classOf[Array[Byte]])
       .name("frozen-map")
-      .averageValue(makeDummyGraph()) //TODO
       .entries(10000000) //TODO
       .create
   }
@@ -92,37 +91,6 @@ object Refrigerator {
         }
       }
       null
-  }
-
-  def makeDummyGraph(): Array[Byte] = {
-    val n = new SynchronizedDynamicNode(0)
-    n.addOutBoundNodes(List(1, 2, 3, 5, 6, 7, 1, 2, 3, 5, 6, 7))
-
-    val n1 = new SynchronizedDynamicNode(4)
-    n1.addOutBoundNodes(List(5, 6, 7, 1, 2, 3, 5, 6, 7))
-
-    val n2 = new SynchronizedDynamicNode(8)
-    n2.addOutBoundNodes(List(9, 10, 11, 1, 2, 3, 5, 6, 7))
-
-    val n3 = new SynchronizedDynamicNode(0)
-    n3.addOutBoundNodes(List(1, 2, 3, 5, 6, 7, 1, 2, 3, 5, 6, 7))
-
-    val n4 = new SynchronizedDynamicNode(4)
-    n4.addOutBoundNodes(List(5, 6, 7, 1, 2, 3, 5, 6, 7))
-
-    val n5 = new SynchronizedDynamicNode(8)
-    n5.addOutBoundNodes(List(9, 10, 11, 1, 2, 3, 5, 6, 7))
-
-    val nodes = List[SynchronizedDynamicNode](n, n1, n2, n3, n4, n5)
-
-    val frozenDataHolder = new FrozenDataHolder()
-    frozenDataHolder.freezePrefix = Seq(1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4)
-    frozenDataHolder.freezeDag = nodes
-//    frozenDataHolder.freezeDag = new SynchronizedDynamicGraphV2(nodes)
-//    for (i <- nodes.indices) {
-//      frozenDataHolder.freezeDag.getOrCreateNode(i)
-//    }
-    SynchronizedNodeBuilder.serialiseFrozenDataHolder(frozenDataHolder)
   }
 
   def isHolderOk(cliques : List[Set[Int]], frozenDataHolder: FrozenDataHolder) : Boolean = {

@@ -155,6 +155,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
         //nextEnumerator.clearDag();
 
         if (subgraph.getNumWords() == 0) {
+            count++;
             extendFromGraph(subgraph.getConfig().getMainGraph(), nextEnumerator.dag, u);
         } else {
             extendFromDag(dag, nextEnumerator.dag, u);
@@ -224,21 +225,44 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
      * @param u first vertex being added to the current subgraph
      */
     private static void extendFromGraph(MainGraph graph, IntObjMap<IntArrayList> dag, int u) {
-        count++;
 
         IntArrayList orderedVertices = graph.getVertexNeighbours(u);
+
+        IntArrayList candidates = new IntArrayList();
+
+
         //in case this is not first computation for this iter
         dag.clear();
 
+        //candidates.ensureCapacity(orderedVertices.size());
         dag.ensureCapacity(orderedVertices.size());
         IntCursor cur0 = orderedVertices.cursor();
 
         while (cur0.moveNext()) {
             int v = cur0.elem();
             if (neigboursColorsCount.get(v) >= size - 1) {
-                dag.put(v, IntArrayListPool.instance().createObject());
+                //candidates.add(v);
+                dag.put(cur0.elem(), IntArrayListPool.instance().createObject());
             }
         }
+
+//        dag.ensureCapacity(candidates.size());
+//        IntCursor cur1 = candidates.cursor();
+//        int removed = 0;
+//        while (cur1.moveNext()) {
+//            Set<Integer> assigned = new TreeSet<>();
+//            for (int i : graph.getVertexNeighbours(cur1.elem())) {
+//                if (candidates.contains(i)) {
+//                    assigned.add(colors.get(i));
+//                }
+//            }
+//            if (assigned.size() >= size - 1) {
+//                dag.put(cur1.elem(), IntArrayListPool.instance().createObject());
+//            } else {
+//                removed++;
+//            }
+//        }
+
 
         long time = System.currentTimeMillis();
         long lens = 0;
@@ -258,10 +282,9 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
             }
         }
 
-        boolean writeSizes = true;
-        if (writeSizes) {
+        if (false) {
             System.out.println("neighborhood.size: " + orderedVertices.size() + "; dag.size: " + dag.keySet().size() +
-                    "; time: "+ (System.currentTimeMillis() - time) / 1000.0 + "s; lens: " + lens);
+                    "; time: "+ (System.currentTimeMillis() - time) / 1000.0 + "s; lens: " + lens);// + "; removed: " + removed);
         }
     }
 

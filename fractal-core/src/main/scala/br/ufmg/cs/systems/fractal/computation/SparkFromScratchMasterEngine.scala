@@ -14,12 +14,14 @@ import br.ufmg.cs.systems.fractal.conf.SparkConfiguration
 import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator
 import br.ufmg.cs.systems.fractal.graph.MainGraph
 import br.ufmg.cs.systems.fractal.subgraph._
-import br.ufmg.cs.systems.fractal.util.collection.IntArrayList
+import br.ufmg.cs.systems.fractal.util.collection.{IntArrayList, IntSet}
 import br.ufmg.cs.systems.fractal.util.{Logging, ProcessComputeFunc, SynchronizedNodeBuilder}
 import breeze.linalg.max
+import com.koloboke.collect.IntCursor
 import com.koloboke.collect.map.{IntObjCursor, IntObjMap}
 import com.koloboke.collect.map.hash.HashIntObjMaps
 import com.twitter.cassovary.graph.node.SynchronizedDynamicNode
+import org.agrona.collections.IntHashSet
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
@@ -336,7 +338,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             } else {
               //well, there are no cliques, reduce clique size and try again
               Refrigerator.inc()
-
             }
             if (continue) {
               iter.clearDag()
@@ -356,16 +357,17 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             continue
           }
 
+          val execEngine = c.getExecutionEngine.asInstanceOf[SparkFromScratchEngine[S]]
+          var currComp = c.nextComputation()
+          while (currComp != null) {
+            currComp.setExecutionEngine(execEngine)
+            currComp.init(config)
+            currComp.initAggregations(config)
+            currComp = currComp.nextComputation
+          }
+          lastStepConsumer = new LastStepConsumer[S]()
+
           while (repeatOrClean()) {
-            val execEngine = c.getExecutionEngine.asInstanceOf[SparkFromScratchEngine[S]]
-            var currComp = c.nextComputation()
-            while (currComp != null) {
-              currComp.setExecutionEngine(execEngine)
-              currComp.init(config)
-              currComp.initAggregations(config)
-              currComp = currComp.nextComputation
-            }
-            lastStepConsumer = new LastStepConsumer[S]()
 
             val start = System.currentTimeMillis
 
@@ -405,39 +407,54 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             }
 
             while (repeatLoop()) {
-
               val start0 = System.currentTimeMillis
+
+              var subgraph : S = result.head.subgraph
+              var saved_iter : SubgraphEnumerator[S] = result.head.enumerator
 
               if (!done && !repeat) {
                 if (result.head.getResultType == ResultType.SERIALIZED) {
                   //Ok, we have serialized iter and sub
                   val (e, s, ser_time) = read_iter(result.head.serializedFileIter, result.head.serializedFileSub, c)
-                  result.head.enumerator = e
-                  result.head.subgraph = s
+                  saved_iter = e
+                  subgraph = s
                   KClistEnumerator.loads += 1
-                  logWarning(s"deser iter: ${result.id}; size: ${s.getVertices.size}; dag size: ${e.getDag.size}; deser time: ${ser_time / 1000.0}s; ")
+                  logWarning(s"${result.head.getResultType} (deser iter: ${result.id}); size: ${s.getVertices.size}; dag size: ${e.getDag.size}; deser time: ${ser_time / 1000.0}s; ")
                 } else if (result.head.getResultType == ResultType.VERTEX) {
                   //Ok, we have only vertex, need to extend
                   iter.maybeRemoveLastWord()
                   val (next_iter, extend_time) = extend(iter, result.head.vertex)
                   val ser = System.currentTimeMillis
-                  val (iterNew, subgraph) = copyIter(next_iter, iter.getSubgraph)
+                  val (e, s) = copyIter(next_iter, iter.getSubgraph)
                   val ser_time = System.currentTimeMillis - ser
-                  val orphan = new ComputationResult[S](iterNew, subgraph)
-                  logWarning("one vertex " + result.head.vertex.toString + s" extend_time: ${extend_time / 1000.0}s; copy iter: ${ser_time / 1000.0}s;")
+                  val orphan = new ComputationResult[S](e, s)
+                  saved_iter = e
+                  subgraph = s
+
+                  logWarning(s"${result.head.getResultType} (extend ${result.head.vertex}); extend_time: ${extend_time / 1000.0}s; copy iter: ${ser_time / 1000.0}s; id: ${result.id}")
                   result = new ComputationTree[S](result, iter.getComputation.nextComputation(), orphan)
                 } else if (result.head.getResultType == ResultType.SUBGRAPH) {
                   //Ok, we have subgraph, rebuild iter
-                  val (e, time) = sub2iter(c, result.head.subgraph)
-                  result.head.enumerator = e
-                  logWarning(s"rebuild iter: ${result.id}; size: ${result.head.subgraph.getVertices.size}; dag size: ${e.getDag.size}; rebuild time: ${time / 1000.0}s; ")
+                  val set = new IntArrayList()
+
+                  set.add(result.head.vertex)
+                  var p = result.parent
+                  while (p.head.getResultType != ResultType.REGULAR) {
+                    set.add(p.head.vertex)
+                    p = p.parent
+                  }
+                  subgraph = SparkConfiguration.deserialize[S](SparkConfiguration.serialize(p.head.subgraph))
+                  val cur = set.cursor()
+                  while (cur.moveNext()) {
+                    subgraph.addWord(cur.elem())
+                  }
+
+                  val (e, time) = sub2iter(c, subgraph)
+                  saved_iter = e
+
+                  logWarning(s"${result.head.getResultType} (rebuild subgraph and iter); size: ${subgraph.getVertices.size}; dag size: ${e.getDag.size}; rebuild time: ${time / 1000.0}s; id: ${result.id}")
                 }
-
-
               }
-
-              val subgraph = result.head.subgraph
-              val saved_iter = result.head.enumerator
 
               if (subgraph.getVertices.size() == Refrigerator.size) {
                 addClique(subgraph)
@@ -458,12 +475,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   // so, starting from this point we only need to find first candidate from next candidates
                   // because the number may only falling
                   result.setHead(results.get(0))
-                  result.updateId()
-                  result.updateLevel()
-
-                  repeat = true
-
-//---------------- EXPERIMENTAL PART ----------------
+                  //check if we already have a clique
                   val s = result.head.subgraph
                   val dag = result.head.enumerator.getDag
                   if (s.getVertices.size + dag.keySet().size() == Refrigerator.size) {
@@ -475,15 +487,17 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                       }
                       addClique(s)
                     }
+                  } else {
+                    result.updateId()
+                    result.updateLevel()
+                    repeat = true
                   }
-//---------------------------------------------------
-
                 } else {
                   if (writePath && results.isEmpty) {
                     logWarning("|--> X")
                   }
 
-                  result.head.reset()
+                  //result.head.reset()
 
                   for (orphan <- results) {
                     val c = new ComputationTree[S](result, nextComp.nextComputation(), orphan)
@@ -566,6 +580,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         var firstSub: Array[Byte] = null
         var firstIterSaved = false
         var next_iter: SubgraphEnumerator[S] = null
+
+        var log = ""
 
         while (!(found && getOnlyFirst) && iter.hasNext) {
           val u = iter.nextElem()
@@ -650,8 +666,9 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                       result.add(iterName0, subName0)
                       ser_time0_first = ser_time0
                     } else {
-                      val subgraph = SparkConfiguration.deserialize[S](firstSub)
-                      result.add(subgraph)
+                      //val subgraph = SparkConfiguration.deserialize[S](firstSub)
+                      //result.add(subgraph)
+                      result.add(u, false)
                     }
                     firstIterSaved = true
                     firstIter = null
@@ -666,25 +683,23 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                     KClistEnumerator.dumps += 1
                     dump_msg = s"dump to file ${KClistEnumerator.dumps.toString} "
                   } else {
-                    val subB = SparkConfiguration.serialize(iter.getSubgraph)
-                    val subgraph = SparkConfiguration.deserialize[S](subB)
-                    result.add(subgraph)
+                    //val subB = SparkConfiguration.serialize(iter.getSubgraph)
+                    //val subgraph = SparkConfiguration.deserialize[S](subB)
+                    //result.add(subgraph)
+                    result.add(u, false)
 
-                    dump_msg = s"save sub "
+                    dump_msg = s"add new vertex "
                   }
 
                   ser_time_all += (ser_time + ser_time0_first + ser)
 
-                  logWarning(
-                    s"$dump_msg$savedFirst$extended" +
-                    s"dag size: ${iter.getDag.size}; sub size: ${iter.getSubgraph.getVertices.size()}" +
-                    s"; extend_time: ${extend_time / 1000.0}s; ser_time: " +
-                    s"${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
-                  )
+                  log += s"\n$dump_msg$savedFirst$extended dag size: ${iter.getDag.size}; sub size: ${iter.getSubgraph.getVertices.size()}" +
+                    s"; extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+
                 }
               }
             } else {
-              result.add(u)
+              result.add(u, true)
             }
           }
         }
@@ -708,6 +723,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           //logWarning(s"copy iter: ${deser / 1000.0}s;")
         }
         iter.extend = true
+
+        logWarning(s"Length: ${result.size()}")
+        if (log != "") logWarning(log)
+
         result
       }
 
@@ -759,7 +778,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
       private def read_iter(iter_path: String, sub_path: String, computation: Computation[S]): (SubgraphEnumerator[S], S, Long) = {
         val ser = System.currentTimeMillis
-        //if (iter_path != "") {
+
         val bis = new BufferedInputStream(new FileInputStream(iter_path))
         val subBis = new BufferedInputStream(new FileInputStream(sub_path))
 
@@ -775,15 +794,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         ser_time_all += ser_time
 
         (iter, subgraph, ser_time)
-//        } else {
-//          val subBis = new BufferedInputStream(new FileInputStream(sub_path))
-//          val subbArray = Stream.continually(subBis.read).takeWhile(-1 !=).map(_.toByte).toArray
-//          val subgraph = SparkConfiguration.deserialize[S](subbArray)
-//          val (iter, ser) = sub2iter(computation, subgraph)
-//          val ser_time = System.currentTimeMillis - ser
-//          ser_time_all += ser_time
-//          (iter, subgraph, ser_time)
-//        }
       }
 
       private def sub2iter(computation: Computation[S], subgraph: S): (SubgraphEnumerator[S], Long) = {
@@ -791,8 +801,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
         val iter = new KClistEnumerator[S]
         iter.set(computation, subgraph)
-        iter.set(subgraph.getVertices)
         iter.rebuildState()
+        iter.set(iter.getDag.keySet())
         val ser_time = System.currentTimeMillis - ser
 
         (iter, ser_time)

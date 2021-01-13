@@ -70,9 +70,9 @@ object MaximalCliquesListing extends Logging {
     //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/00test.txt")
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els2/01test.txt")
     //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/02test.txt")
-    //val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
-    val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
-    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/22_test.txt")
+    val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
+    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
+    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/127_test.txt")
 
 
     //val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
@@ -106,7 +106,7 @@ object MaximalCliquesListing extends Logging {
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
-    val topN = 5
+    val topN = 6
 
     addCliques(s, topN, true)
 
@@ -114,8 +114,8 @@ object MaximalCliquesListing extends Logging {
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
 
     for (r <- Refrigerator.result) {
-      //println(r)
-      println(r.size())
+      println(r)
+      //println(r.size())
     }
     cleanDataFolder(dataPath)
 
