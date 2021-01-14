@@ -15,6 +15,10 @@ public class ComputationResult<S extends Subgraph> {
     String serializedFileSub = "";
     int vertex = -1;
 
+    public void setResultType(ResultType resultType) {
+        this.resultType = resultType;
+    }
+
     public ResultType getResultType() {
         return resultType;
     }

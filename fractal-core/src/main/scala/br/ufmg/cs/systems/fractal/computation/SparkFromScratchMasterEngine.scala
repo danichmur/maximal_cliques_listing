@@ -286,36 +286,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
       def apply(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
         val config = c.getConfig
 
-
-        //        val t = iter.prefix.size() + iter.getDag.size()
-        //        if (c.getDepth != 0 && t < Refrigerator.size) {
-        //          if (iter.prefix.size != 0 && iter.getDag.size() == 0) {
-        //            //TODO save clique?
-        //            //logInfo(s"SAVING C ${iter.getDag} ${iter.prefix}")
-        //          } else {
-        //            //freeze
-        //            //logInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
-        //            //Refrigerator.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
-        //          }
-        //          return new ComputationResults[S]
-        //        }
-        //        if (Refrigerator.freeze && c.getDepth == 0) {
-        //          val pIter = Refrigerator.current.freezePrefix.iterator
-        //          val dIter = Refrigerator.current.freezeDag.iterator
-        //          val prefix = new IntArrayList
-        //          val dag : IntObjMap[IntArrayList] = HashIntObjMaps.newMutableMap.asInstanceOf[IntObjMap[IntArrayList]]
-        //
-        //          while (pIter.hasNext) {
-        //            prefix.add(pIter.next.asInstanceOf[Integer])
-        //          }
-        //
-        //          while (dIter.hasNext) {
-        //            val node = dIter.next
-        //            dag.put(node.id, SynchronizedNodeBuilder.seq2ArrayList(node.outboundNodes))
-        //          }
-        //          iter.setForFrozen(prefix, dag)
-        //        }
-
         if (c.getDepth == 0) {
           val N = c.getConfig.getInteger("top_N", 1)
           val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
@@ -366,6 +336,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             currComp = currComp.nextComputation
           }
           lastStepConsumer = new LastStepConsumer[S]()
+          var ret_main : ComputationResults[S] = null
 
           while (repeatOrClean()) {
 
@@ -428,6 +399,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   val (e, s) = copyIter(next_iter, iter.getSubgraph)
                   val ser_time = System.currentTimeMillis - ser
                   val orphan = new ComputationResult[S](e, s)
+                  //result.setHead(new ComputationResult[S](e, s))
                   saved_iter = e
                   subgraph = s
 
@@ -474,15 +446,14 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   // on the previous iteration we checked all candidates, if the results.length == 1, we have only one candidate
                   // so, starting from this point we only need to find first candidate from next candidates
                   // because the number may only falling
-                  result.setHead(results.get(0))
-                  result.updateId()
-                  result.updateLevel()
+
                   repeat = true
 
                   //check if we already have a clique
-                  val s = result.head.subgraph
-                  val dag = result.head.enumerator.getDag
-                  if (s.getVertices.size + dag.keySet().size() == Refrigerator.size) {
+                  val s = results.get(0).subgraph
+                  val dag = results.get(0).enumerator.getDag
+                  //todo do not check this ?
+                  //if (s.getVertices.size + dag.keySet().size() == Refrigerator.size) {
                     if (KClistEnumerator.isClique(dag)) {
                       logWarning(s"KClistEnumerator.isClique for ${s.getVertices}!")
 
@@ -492,10 +463,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                       addClique(s)
                       repeat = false
                     }
+                  //}
+
+                  if (repeat) {
+                    result.setHead(results.get(0))
+                    result.updateId()
+                    result.updateLevel()
                   }
-
-
-
                 } else {
                   if (writePath && results.isEmpty) {
                     logWarning("|--> X")
@@ -533,30 +507,10 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               s" external=${config.externalWsEnabled()}")
             logInfo(s"InitialComputation step=${c.getStep}" +
               s" partitionId=${c.getPartitionId} took ${elapsed} ms")
-
-            //          if (false && config.wsEnabled()) {
-            //            // setup work-stealing system
-            //            start = System.currentTimeMillis
-            //
-            //            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
-            //              processCompute(iter, c)
-            //            }
-            //
-            //            val gtagExecutorActor = execEngine.slaveActorRef
-            //            workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
-            //            workStealingSys.workStealingCompute(c)
-            //            elapsed = System.currentTimeMillis - start
-            //
-            //            logInfo(s"WorkStealingComputation step=${c.getStep}" +
-            //              s" partitionId=${c.getPartitionId} took ${elapsed} ms")
-            //          }
-
-            ret
+            ret_main = ret
           }
-
           graph.closeMap()
-//TODO
-          null
+          ret_main
         } else {
           processCompute(iter, c)
         }
@@ -581,11 +535,13 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         var extendNeeded = iter.getSubgraph.getNumVertices > KClistEnumerator.EXTENDS_THRESHOLD
         var log = ""
 
+        val prefixSize = iter.getSubgraph.getVertices.size()
+        val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
+
+        val iterate_start = System.currentTimeMillis
+
         while (!(found && getOnlyFirst) && iter.hasNext) {
           val u = iter.nextElem()
-
-          val prefixSize = iter.getSubgraph.getVertices.size()
-          val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
 
           val (uniqColors, elapsed) = FractalSparkRunner.time {
             val dag = iter.getDag
@@ -643,24 +599,34 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
               log += s"\n$u: dump to file ${KClistEnumerator.dumps.toString} dag size: ${iter.getDag.size}; sub size: ${iter.getSubgraph.getVertices.size()}" +
                 s"; extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
             } else {
-              log += s"\n$u: add vertex"
+              if (writePath) {
+                log += s"\n$u: add vertex"
+              }
               result.add(u, prefixSize == 0)
             }
           }
         }
+        val iterate_time = System.currentTimeMillis - iterate_start
 
-        if (result.size() == 1 && !extendNeeded) {
+        if (prefixSize != 0 && !extendNeeded && result.size() > 0) {
+          //if (!extendNeeded) else {read from file}
           //let's extend, because we have only one appropriate vertex
+          val subgraph = SparkConfiguration.deserialize[S](SparkConfiguration.serialize(iter.getSubgraph))
+          iter.set(c, subgraph)
           val (next_iter, extend_time) = extend(iter, result.get(0).vertex)
-          log += s"\nonly one! extend_time: ${extend_time / 1000.0}s"
+          log += s"\nextend first time: ${extend_time / 1000.0}s"
           result.get(0).reset()
-          next_iter.shouldRemoveLastWord = false
-          next_iter.setGetFirstCandidate(true)
+          if (result.size() == 1) {
+            next_iter.shouldRemoveLastWord = false
+            next_iter.setGetFirstCandidate(true)
+          }
           result.get(0).enumerator = next_iter
-          result.get(0).subgraph = SparkConfiguration.deserialize[S](SparkConfiguration.serialize(iter.getSubgraph))
+          result.get(0).subgraph = subgraph
+          result.get(0).setResultType(ResultType.REGULAR)
         } else {
          //TODO getOnlyFirst ?????/
         }
+        log += s"\niterate time ${iterate_time / 1000.0}s"
         iter.extend = true
         if (result.size() > 0) logWarning(s"Length: ${result.size()}")
         if (log != "") logWarning(log)
@@ -754,6 +720,8 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         if (child == null) {
           //well, we have no children, go back to parent
           result.killChildren()
+          result.head.reset()
+
           var back = true
           while (result.hasParent && back) {
             result = result.parent
@@ -879,3 +847,51 @@ object SparkFromScratchMasterEngine {
   val VALID_SUBGRAPHS = "valid_subgraphs"
   val AGG_CANONICAL_FILTER = "canonical_filter"
 }
+
+
+
+//          if (false && config.wsEnabled()) {
+//            // setup work-stealing system
+//            start = System.currentTimeMillis
+//
+//            def processComputeCallback(iter: SubgraphEnumerator[S], c: Computation[S]): ComputationResults[S] = {
+//              processCompute(iter, c)
+//            }
+//
+//            val gtagExecutorActor = execEngine.slaveActorRef
+//            workStealingSys = new WorkStealingSystem[S](processComputeCallback, gtagExecutorActor, new ConcurrentLinkedQueue())
+//            workStealingSys.workStealingCompute(c)
+//            elapsed = System.currentTimeMillis - start
+//
+//            logInfo(s"WorkStealingComputation step=${c.getStep}" +
+//              s" partitionId=${c.getPartitionId} took ${elapsed} ms")
+//          }
+
+//        val t = iter.prefix.size() + iter.getDag.size()
+//        if (c.getDepth != 0 && t < Refrigerator.size) {
+//          if (iter.prefix.size != 0 && iter.getDag.size() == 0) {
+//            //TODO save clique?
+//            //logInfo(s"SAVING C ${iter.getDag} ${iter.prefix}")
+//          } else {
+//            //freeze
+//            //logInfo(s"ADDING C ${iter.getDag} ${iter.prefix}")
+//            //Refrigerator.addFrozenData(new FrozenDataHolder(iter.getDag, iter.prefix))
+//          }
+//          return new ComputationResults[S]
+//        }
+//        if (Refrigerator.freeze && c.getDepth == 0) {
+//          val pIter = Refrigerator.current.freezePrefix.iterator
+//          val dIter = Refrigerator.current.freezeDag.iterator
+//          val prefix = new IntArrayList
+//          val dag : IntObjMap[IntArrayList] = HashIntObjMaps.newMutableMap.asInstanceOf[IntObjMap[IntArrayList]]
+//
+//          while (pIter.hasNext) {
+//            prefix.add(pIter.next.asInstanceOf[Integer])
+//          }
+//
+//          while (dIter.hasNext) {
+//            val node = dIter.next
+//            dag.put(node.id, SynchronizedNodeBuilder.seq2ArrayList(node.outboundNodes))
+//          }
+//          iter.setForFrozen(prefix, dag)
+//        }

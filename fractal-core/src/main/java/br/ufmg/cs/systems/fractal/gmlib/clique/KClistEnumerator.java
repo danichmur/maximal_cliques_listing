@@ -38,7 +38,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     public static int rebuilds = 0;
     public static int graphCounter = 0;
 
-    public static int EXTENDS_THRESHOLD = 106;
+    public static int EXTENDS_THRESHOLD = 52; //todo
 
     private static ChronicleMap<String, byte[]> iterStorage = null;
 

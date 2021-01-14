@@ -70,8 +70,8 @@ object MaximalCliquesListing extends Logging {
     //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/00test.txt")
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els2/01test.txt")
    // val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/02test.txt")
-    val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
-    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
+    //val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
+    val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/127_test.txt")
 
 
