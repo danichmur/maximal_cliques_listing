@@ -352,7 +352,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             }
 
             var result = computationTree
-            var done = false
+            var done = ret.size() == 0
             var repeat = false
 
             val addClique = (s : S) => {
@@ -390,7 +390,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   saved_iter = e
                   subgraph = s
                   KClistEnumerator.loads += 1
-                  logWarning(s"${result.head.getResultType} (deser iter: ${result.id}); size: ${s.getVertices.size}; dag size: ${e.getDag.size}; deser time: ${ser_time / 1000.0}s; ")
+                  logWarning(s"deser iter: ${result.id}; size: ${s.getVertices.size}; dag size: ${e.getDag.size}; deser time: ${ser_time / 1000.0}s; ")
                 } else if (result.head.getResultType == ResultType.VERTEX) {
                   //Ok, we have only vertex, need to extend
                   iter.maybeRemoveLastWord()
@@ -450,20 +450,19 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                   repeat = true
 
                   //check if we already have a clique
+                  //the first one should always be with subgraph and enumerator
                   val s = results.get(0).subgraph
                   val dag = results.get(0).enumerator.getDag
-                  //todo do not check this ?
-                  //if (s.getVertices.size + dag.keySet().size() == Refrigerator.size) {
-                    if (KClistEnumerator.isClique(dag)) {
-                      logWarning(s"KClistEnumerator.isClique for ${s.getVertices}!")
 
-                      for (i <- dag.keySet()) {
-                        s.addWord(i)
-                      }
-                      addClique(s)
-                      repeat = false
+                  if (KClistEnumerator.isClique(dag)) {
+                    logWarning(s"KClistEnumerator.isClique for ${s.getVertices}!")
+
+                    for (i <- dag.keySet()) {
+                      s.addWord(i)
                     }
-                  //}
+                    addClique(s)
+                    repeat = false
+                  }
 
                   if (repeat) {
                     result.setHead(results.get(0))
@@ -486,7 +485,7 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
                 }
 
                 val stepTime = System.currentTimeMillis - start0
-                if (result.level % 100 == 0) {
+                if (true || result.level % 100 == 0) {
                   logWarning(s"handling ${result.id}, level ${result.level}, " +
                     s"time: ${stepTime / 1000.0}s; " +
                     s"extend_time_all: ${extend_time_all / 1000.0}s; " +
@@ -582,22 +581,38 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             if (extendNeeded) {
               val (next_iter, extend_time) = extend(iter, u)
+              if (result.size() > 0) {
+                var ser_time: Long = 0
+                val (iterName, subName, s) = save_iter(next_iter, iter.getSubgraph, data_path)
+                ser_time = s
+                result.add(iterName, subName)
+                KClistEnumerator.dumps += 1
 
-              var ser_time: Long = 0
-              val (iterName, subName, s) = save_iter(next_iter, iter.getSubgraph, data_path)
-              ser_time = s
-              result.add(iterName, subName)
-              KClistEnumerator.dumps += 1
+                ser_time_all += ser_time
 
-              ser_time_all += ser_time
+                if (false && writePath) {
+                  val str = if (getOnlyFirst) "only first " else ""
+                  logWarning("|--> " + str + u.toString)
+                }
 
-              if (writePath) {
-                val str = if (getOnlyFirst) "only first " else ""
-                logWarning("|--> " + str + u.toString)
+                log += s"\n$u: dump to file ${KClistEnumerator.dumps.toString} dag size: ${iter.getDag.size}; sub size: ${iter.getSubgraph.getVertices.size()}" +
+                  s"; extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
+              } else {
+                var ci = ""
+                val copy = System.currentTimeMillis
+                if (getOnlyFirst) {
+                  ci = "just add; "
+                  result.add(next_iter, iter.getSubgraph)
+                } else {
+                  val (iterNew, subNew) = copyIter(next_iter, iter.getSubgraph)
+                  ci = "copy iter; "
+                  result.add(iterNew, subNew)
+                }
+                val copy_time = System.currentTimeMillis - copy
+
+                log += s"\n$u: $ci dag size: ${iter.getDag.size}; sub size: ${iter.getSubgraph.getVertices.size()}" +
+                  s"; extend_time: ${extend_time / 1000.0}s; copy_time: ${copy_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
               }
-
-              log += s"\n$u: dump to file ${KClistEnumerator.dumps.toString} dag size: ${iter.getDag.size}; sub size: ${iter.getSubgraph.getVertices.size()}" +
-                s"; extend_time: ${extend_time / 1000.0}s; ser_time: ${ser_time / 1000.0}s; get colors: ${elapsed / 1000.0}s;"
             } else {
               if (writePath) {
                 log += s"\n$u: add vertex"
@@ -609,7 +624,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val iterate_time = System.currentTimeMillis - iterate_start
 
         if (prefixSize != 0 && !extendNeeded && result.size() > 0) {
-          //if (!extendNeeded) else {read from file}
           //let's extend, because we have only one appropriate vertex
           val subgraph = SparkConfiguration.deserialize[S](SparkConfiguration.serialize(iter.getSubgraph))
           iter.set(c, subgraph)
@@ -623,8 +637,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           result.get(0).enumerator = next_iter
           result.get(0).subgraph = subgraph
           result.get(0).setResultType(ResultType.REGULAR)
-        } else {
-         //TODO getOnlyFirst ?????/
         }
         log += s"\niterate time ${iterate_time / 1000.0}s"
         iter.extend = true

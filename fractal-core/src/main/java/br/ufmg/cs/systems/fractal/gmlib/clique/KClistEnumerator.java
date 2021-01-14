@@ -38,7 +38,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     public static int rebuilds = 0;
     public static int graphCounter = 0;
 
-    public static int EXTENDS_THRESHOLD = 52; //todo
+    public static int EXTENDS_THRESHOLD = 126; //todo
 
     private static ChronicleMap<String, byte[]> iterStorage = null;
 
@@ -149,7 +149,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     public SubgraphEnumerator<S> extend(int u) {
         count++;
 
-        KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.getSubgraphEnumerator();
+        KClistEnumerator<S> nextEnumerator = (KClistEnumerator<S>) computation.nextComputation().getSubgraphEnumerator();
         if (!extend) {
             subgraph.addWord(u);
             shouldRemoveLastWord = true;
