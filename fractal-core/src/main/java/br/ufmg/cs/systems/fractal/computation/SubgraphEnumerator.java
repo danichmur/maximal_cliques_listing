@@ -7,6 +7,7 @@ import br.ufmg.cs.systems.fractal.util.pool.IntArrayListPool;
 import com.koloboke.collect.IntCollection;
 import com.koloboke.collect.IntCursor;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
@@ -27,16 +28,27 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    protected boolean lastHasNext;
 
-   protected int currElem;
+   protected int currElem = -1;
 
    protected IntCollection wordIds;
 
    protected IntCursor cur;
 
-   protected boolean shouldRemoveLastWord;
-   
+   public boolean shouldRemoveLastWord;
+   public boolean extend = true;
+
    private AtomicBoolean active;
    private boolean frozen;
+
+   public boolean isGetFirstCandidate() {
+      return getFirstCandidate;
+   }
+
+   public void setGetFirstCandidate(boolean getFirstCandidate) {
+      this.getFirstCandidate = getFirstCandidate;
+   }
+
+   private boolean getFirstCandidate;
 
    public String computationLabel() {
       return computation.computationLabel();
@@ -46,19 +58,25 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       return active != null && active.get();
    }
 
-   public boolean isFrozen() {
-      return frozen;
-   }
-
-   public void setFrozen(boolean frozen) {this.frozen = frozen; }
 
    public SubgraphEnumerator() {
       this.rlock = new ReentrantLock();
       this.prefix = IntArrayListPool.instance().createObject();
    }
 
-   public void setForFrozen(IntArrayList prefix, IntObjMap<IntArrayList>  dag) {
-      subgraph.setVertices(prefix);
+   public void setForFrozen(S subgraph, IntObjMap<IntArrayList>  dag) {
+      //subgraph.setVertices(prefix);
+      this.subgraph = subgraph;
+      set(dag.keySet());
+
+      if(wordIds.size() == 1){
+         cur.moveNext();
+         currElem = cur.elem();
+      }
+
+   }
+
+   public void setForFrozen(IntObjMap<IntArrayList> dag) {
       set(dag.keySet());
 
       if(wordIds.size() == 1){
@@ -90,6 +108,11 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       // empty by default
    }
 
+   public void clearDag() {
+
+   }
+
+
    /**
     * This method is used to generate the set of extensions in preparation for
     * extension routines.
@@ -110,7 +133,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
     * in-place for further extensions (returns 'this').
     * @return the updated extended subgraph enumerator
     */
-   public SubgraphEnumerator<S> extend() {
+   public SubgraphEnumerator<S> extend(int u) {
       next();
       return this;
    }
@@ -125,18 +148,23 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    public synchronized SubgraphEnumerator<S> set(IntCollection wordIds) {
       this.prefix.clear();
+
       this.prefix.addAll(subgraph.getWords());
       this.lastHasNext = false;
-      this.currElem = -1;
-      this.wordIds = wordIds;
-      this.cur = wordIds.cursor();
+      int[] arr = wordIds.toIntArray();
+      Arrays.sort(arr);
+
+      this.wordIds = new IntArrayList(arr);
+
+      this.cur = this.wordIds.cursor();
+
       this.shouldRemoveLastWord = false;
       this.active = new AtomicBoolean(true);
-
       return this;
    }
 
    public synchronized SubgraphEnumerator<S> forkEnumerator(Computation<S> computation) {
+      System.out.println("forkEnumerator");
       // create new consumer, adding just enough to verify if there is still
       // work in it
       SubgraphEnumerator<S> iter = computation.
@@ -175,7 +203,7 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
       //IntArrayListPool.instance().reclaimObject(prefix);
    }
 
-   private void maybeRemoveLastWord() {
+   public void maybeRemoveLastWord() {
       if (shouldRemoveLastWord) {
          subgraph.removeLastWord();
          shouldRemoveLastWord = false;
@@ -204,7 +232,8 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
                   return true;
                }
             }
-            active.set(false);
+            //TODO
+            //active.set(false);
          } else {
             maybeRemoveLastWord();
          }
@@ -245,6 +274,13 @@ public class SubgraphEnumerator<S extends Subgraph> implements Iterator<S> {
 
    public IntCollection getWordIds() {
       return wordIds;
+   }
+
+   public void resetCursor() {
+      this.cur = wordIds.cursor();
+      this.currElem = -1;
+      shouldRemoveLastWord = true;
+      maybeRemoveLastWord();
    }
 
    @Override

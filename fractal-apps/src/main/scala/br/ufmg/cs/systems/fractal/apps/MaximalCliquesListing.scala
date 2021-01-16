@@ -1,55 +1,42 @@
 package br.ufmg.cs.systems.fractal.apps
 
-import br.ufmg.cs.systems.fractal.computation.{Computation, Refrigerator}
-import br.ufmg.cs.systems.fractal.graph.Edge
+import br.ufmg.cs.systems.fractal.CFLVertexColoring.logWarning
+import br.ufmg.cs.systems.fractal.computation.Refrigerator
 import br.ufmg.cs.systems.fractal._
-import br.ufmg.cs.systems.fractal.subgraph.{EdgeInducedSubgraph, VertexInducedSubgraph}
-import br.ufmg.cs.systems.fractal.util.{EdgeFilterFunc, Logging}
+import br.ufmg.cs.systems.fractal.gmlib.clique.KClistEnumerator
+import br.ufmg.cs.systems.fractal.util.Logging
 import org.apache.spark.{SparkConf, SparkContext}
-
-trait PostalCodeRange {
-  def minCode: Int
-
-  def minCode(minCode: Int): Unit
-
-  def maxCode: Int
-
-  def maxCode(maxCode: Int): Unit
-}
 
 case class CliquesList(
                         fractalGraph: FractalGraph,
-                        commStrategy: String,
-                        numPartitions: Int,
                         explorationSteps: Int,
-                        readyCliques: List[Set[Int]]
+                        readyCliques: List[Set[Int]],
+                        dataPath : String,
+                        N : Int,
+                        inc : Boolean
                       ) extends FractalSparkApp {
 
   var foundedCliques : (List[Set[Int]], List[Set[Int]]) = (List(), List())
 
   def execute: Unit = {
-
-    def epredCallback(cliques : List[Set[Int]]) = {
-      new EdgeFilterFunc[EdgeInducedSubgraph] {
-        override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
-          !cliques.exists(c => c.contains(e.getSourceId) && c.contains(e.getDestinationId))
-        }
-      }
-    }
-
-    val vfilter = (v : VertexInducedSubgraph, c : Computation[VertexInducedSubgraph]) => {
-      true
-    }
-
     //https://dl.acm.org/citation.cfm?id=3186125
     //Fractoid with the initial state for cliques
     val initialFractoid = fractalGraph.vfractoid.expand(1)
 
-    val cliquesRes = initialFractoid.
+    val commStrategy = "scratch"
+    val numPartitions = 1
+
+    val testF = initialFractoid.
       //set("efilter", epredCallback(readyCliques)).
       set ("comm_strategy", commStrategy).
       set ("num_partitions", numPartitions).
-      explore(explorationSteps)
+      set ("dump_path", dataPath).
+      set ("top_N", N)
+//    if (inc) {
+//      testF.setNew(explorationSteps)
+//    }
+
+    val cliquesRes = testF.explore(explorationSteps)
 
     val (_, elapsed) = FractalSparkRunner.time {cliquesRes.compute()}
 
@@ -68,78 +55,129 @@ case class CliquesList(
 
 object MaximalCliquesListing extends Logging {
 
-  //525 v, 22415 e - 8 min
-
   def main(args: Array[String]): Unit = {
     val conf = new SparkConf().setMaster("local").setAppName("MaximalCliquesListing")
+
     val logLevel = "WARN"
     conf.set("spark.executor.memory", "16g")
     conf.set("spark.driver.memory","16g")
     conf.set("fractal.log.level", logLevel)
+    //conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
-    val graphPath = "/Users/danielmuraveyko/Desktop/els/for_kcore_0"
+    //val (s, graphPath) = (22, "/Users/danielmuraveyko/Downloads/brock400-4/brock400-4.mtx")
+
+    //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els/for_kcore_0")
+    //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/00test.txt")
+    //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els2/01test.txt")
+   // val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/02test.txt")
+
+   // val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
+
+    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
+    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/127_test.txt")
+
+
+    //val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
+    //val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
+
+    val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
+    //val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/for_kcore_3000_cutted")
+
+    val time = System.currentTimeMillis()
 
     val sc = new SparkContext(conf)
     sc.setLogLevel(logLevel)
-
-    val kcore_list = Kcore.countKcore(sc, graphPath)
-    val kcore = kcore_list.map(_._2).distinct
-    val kcore_map = kcore_list.toMap
-
     val fc = new FractalContext(sc)
+    logWarning(sc.uiWebUrl.getOrElse(""))
+    val fractalGraph = fc.textFile(graphPath, graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph")
+    val dataPath = "/Users/danielmuraveyko/maximal_cliques_listing/my_data/"
 
-    val graphClass = "br.ufmg.cs.systems.fractal.graph.EdgeListGraph"
-    val fractalGraph = fc.textFile(graphPath, graphClass = graphClass)
-    val commStrategy = "scratch"
-    val numPartitions = 1
-    var explorationSteps = kcore.head
-
-    var cliques : List[Set[Int]] = List()
     var cliquesIdx : List[Set[Int]] = List()
 
-    val addCliques = (steps : Int) => {
-      val app = CliquesList(fractalGraph, commStrategy, numPartitions, steps, cliquesIdx)
+    val addCliques = (steps : Int, N : Int, inc : Boolean) => {
+      val app = CliquesList(fractalGraph, steps, cliquesIdx, dataPath, N, inc)
       val (subgraphs, original_cliques) = app.findCliques()
-      cliques = cliques ++ original_cliques
       cliquesIdx = cliquesIdx ++ subgraphs
     }
 
-    val N = 10 //cliques count
-    val time = System.currentTimeMillis()
-    fractalGraph.set("kcores", kcore_map)
+    val topN = 6
 
-    while (cliques.size < N && explorationSteps >= 2) {
-      if (!Refrigerator.isEmpty) {
-        Refrigerator.freeze = true
-        val foundFistFrozenData = Refrigerator.pollFirstAvailable(explorationSteps, cliquesIdx)
-        if (foundFistFrozenData != null) {
-          fractalGraph.set("cliquesize", explorationSteps + 1)
-          Refrigerator.current = foundFistFrozenData
-          addCliques(explorationSteps - foundFistFrozenData.freezePrefix.size)
-        } else {
-          explorationSteps -= 1
-        }
-      } else if (Refrigerator.freeze) {
-        //The frozen list is empty, we are done here
-        explorationSteps = 0
-      } else {
-        fractalGraph.set("cliquesize", explorationSteps + 1)
-        addCliques(explorationSteps)
-        explorationSteps -= 1
-      }
+    addCliques(s, topN, true)
 
-      logWarning(s"explorationSteps: ${explorationSteps + 1} done")
-
-      if (cliques.size > N) {
-        cliques = cliques.slice(0, N)
-      }
+    logWarning(s"graphs: ${KClistEnumerator.graphCounter}; extends: ${KClistEnumerator.count}; dumps: ${KClistEnumerator.dumps}; loads: ${KClistEnumerator.loads}; rebuilds: ${KClistEnumerator.rebuilds}")
+    logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
+    logWarning(s"Found ${Refrigerator.result.size} cliques")
+    for (r <- Refrigerator.result) {
+      logWarning(r.toString)
+      println(r.size())
     }
+    cleanDataFolder(dataPath)
 
-    logWarning("Result: " + cliques.toString)
-    logWarning(s"Time: ${System.currentTimeMillis() - time}")
+    val f = new java.io.File("map.dat")
+    f.delete()
 
-    Refrigerator.close()
     fc.stop()
     sc.stop()
   }
+
+  def cleanDataFolder(path : String) : Unit = {
+    val f = new java.io.File(path).listFiles()
+    f.foreach(f => f.delete())
+  }
 }
+
+
+//    val users: RDD[(VertexId, Int)] = sc.parallelize(Seq((1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6)))
+//    // Create an RDD for edges
+//    val relationships: RDD[Edge[Int]] = sc.parallelize(Seq(
+//      Edge(1, 2, 0), Edge(1, 3, 0), Edge(2, 3, 0), Edge(1, 4, 0), Edge(3, 4, 0), Edge(2, 4, 0),
+//      Edge(4, 5, 0), Edge(5, 6, 0), Edge(4, 6, 0)
+//    ))
+//
+//    val graph = Graph(users, relationships)
+//
+//    val t1 = graph.triplets.filter(_.srcId == 1).map(_.dstId)
+//    val t2 = graph.triplets.filter(_.srcId == 2).map(_.dstId)
+//    val t3 = graph.triplets.filter(_.srcId == 3).map(_.dstId).collect
+//    val t4 = graph.triplets.filter(_.srcId == 4).map(_.dstId).collect
+//    val t5 = graph.triplets.filter(_.srcId == 5).map(_.dstId).collect
+//    val t6 = graph.triplets.filter(_.srcId == 6).map(_.dstId).collect
+//
+//    t1.intersection(t2).foreach(println)
+
+//    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+//
+//    val v = sqlContext.createDataFrame(List(Tuple1(1), Tuple1(2), Tuple1(3), Tuple1(4), Tuple1(5), Tuple1(6))).toDF("id")
+//    // Edge DataFrame
+//    val e = sqlContext.createDataFrame(List((1, 2), (1, 3), (2, 3), (1, 4), (3, 4), (2, 4), (4, 5), (5, 6), (4, 6))).toDF("src", "dst")
+//
+//    val g = GraphFrame(v, e)
+//    g.degrees.sort("id").show(20, false)
+//
+//    g.triplets.filter("src.id == 1")
+
+
+//    val neo = Neo4j(sc)
+//    val graphQuery = "MATCH (n:Person)-[r:KNOWS]->(m:Person) RETURN id(n) as source, id(m) as target, type(r) as value SKIP $_skip LIMIT $_limit"
+//    val graph: Graph[Long, String] = neo.rels(graphQuery).partitions(7).batch(200).loadGraph
+//
+//    logWarning(graph.vertices.count.toString)
+//    logWarning(graph.edges.count.toString)
+//
+//    sc.stop()
+//    return
+
+//--------------------------------------------------
+
+
+//    def epredCallback(cliques : List[Set[Int]]) = {
+//      new EdgeFilterFunc[EdgeInducedSubgraph] {
+//        override def test(e: Edge[EdgeInducedSubgraph]): Boolean = {
+//          !cliques.exists(c => c.contains(e.getSourceId) && c.contains(e.getDestinationId))
+//        }
+//      }
+//    }
+
+//    val vfilter = (v : VertexInducedSubgraph, c : Computation[VertexInducedSubgraph]) => {
+//      true
+//    }

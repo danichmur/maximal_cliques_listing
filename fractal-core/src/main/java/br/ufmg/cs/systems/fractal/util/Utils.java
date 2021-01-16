@@ -20,6 +20,57 @@ public class Utils {
     }
   }
 
+  public static void smartChoiceIntersect(IntArrayList arr1, IntArrayList arr2,
+                                          int i1, int size1, int i2, int size2, IntCollection target) {
+
+//     if (arr1.size() * Math.log(arr2.size()) < arr1.size() + arr2.size()) {
+//        Utils.binaryIntersect(arr1, arr2, i1, size1, i2, size2, target);
+//     } else if (arr2.size() * Math.log(arr1.size()) < arr1.size() + arr2.size()) {
+//        Utils.binaryIntersect(arr2, arr1, i2, size2, i1, size1, target);
+//     } else {
+        Utils.sintersect(arr1, arr2, i1, size1, i2, size2, target);
+//     }
+  }
+
+   private static void binaryIntersect(IntArrayList arr1, IntArrayList arr2,
+                                       int p1, int size1, int p2, int size2, IntCollection result) {
+
+      while (p1 < size1 && p2 < size2) {
+         int v1 = arr1.getUnchecked(p1);
+         int v2 = arr2.getUnchecked(p2);
+         if (v1 == v2) {
+            result.add(v1);
+            p1++;
+            p2++;
+         } else if (v1 < v2) {
+            p1=Utils.BinarySearch(arr1,p1+1,v2);
+         } else {
+            p2 = Utils.BinarySearch(arr2,p2+1, v1);
+         }
+      }
+   }
+
+   private static int BinarySearch(IntArrayList arr, int p, int v) {
+      int start = p;
+      int end = arr.size() - 1;
+      if (start > end) return start;
+      while (true) {
+         int mid = (start + end) / 2;
+         int val = arr.getUnchecked(mid);
+         if (mid == start) {
+            return val < v ? mid + 1 : mid;
+         }
+         if (val == v) {
+            return mid;
+         } else if (val < v) {
+            start = mid + 1;
+         } else {
+            end = mid - 1;
+         }
+      }
+   }
+
+
   public static int sintersect(IntArrayList arr1, IntArrayList arr2,
         int i1, int size1, int i2, int size2, IntCollection target) {
      int cost = 0;
@@ -44,6 +95,7 @@ public class Utils {
   public static int sintersect(IntArrayList arr1, IntArrayList arr2,
         int i1, int size1, int i2, int size2, IntCollection target,
         IntPredicate pred) {
+
      int cost = 0;
      while (i1 < size1 && i2 < size2) {
         int v1 = arr1.getUnchecked(i1);

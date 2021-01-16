@@ -48,25 +48,25 @@ object SynchronizedNodeBuilder {
 
     val frozenDataHolder = new FrozenDataHolder()
 
-    sizeRaw match {
-      case size : Int => prefixRaw match {
-        case arr : Seq[Int] =>
-          frozenDataHolder.freezePrefix = arr
-          var nodes = List[SynchronizedDynamicNode]()
-
-          for (_ <- 0 until size) {
-            deserialiseNode(ois) match {
-              case Some(node) => nodes = node :: nodes
-            }
-          }
-
-          frozenDataHolder.freezeDag = nodes //new SynchronizedDynamicGraphV2(nodes)
-
-//          for (i <- nodes.indices) {
-//            frozenDataHolder.freezeDag.getOrCreateNode(i)
-//          }
-      }
-    }
+//    sizeRaw match {
+////      case size : Int => prefixRaw match {
+////        case arr : Seq[Int] =>
+////          frozenDataHolder.freezePrefix = arr
+////          var nodes = List[SynchronizedDynamicNode]()
+////
+////          for (_ <- 0 until size) {
+////            deserialiseNode(ois) match {
+////              case Some(node) => nodes = node :: nodes
+////            }
+////          }
+////
+////          frozenDataHolder.freezeDag = nodes //new SynchronizedDynamicGraphV2(nodes)
+////
+//////          for (i <- nodes.indices) {
+//////            frozenDataHolder.freezeDag.getOrCreateNode(i)
+//////          }
+////      }
+//    }
     ois.close()
     frozenDataHolder
   }

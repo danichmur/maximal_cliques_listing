@@ -1,12 +1,14 @@
 package br.ufmg.cs.systems.fractal.graph;
 
+import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
+import br.ufmg.cs.systems.fractal.util.collection.IntSet;
+import com.koloboke.collect.IntCursor;
+import net.openhft.chronicle.map.ChronicleMapBuilder;
 import org.apache.commons.io.input.BOMInputStream;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.StringTokenizer;
 
 public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
@@ -33,70 +35,154 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
    @Override
    protected void readFromInputStream(InputStream is) {
       try {
+         IntArrayList v = new IntArrayList();
+         for (int i = 0; i < 10000; i++) {
+            v.add(i);
+         }
+
+         mainGraph = ChronicleMapBuilder
+                 .of(Integer.class, IntArrayList.class)
+                 .name("main-graph")
+                 .entries(1_000_0000)
+                 .averageValue(v)
+                 .createPersistedTo(new File("map.dat"));
+      } catch (IOException e) {
+         e.printStackTrace();
+      }
+
+      long start = System.currentTimeMillis();
+      try {
          BufferedReader reader = new BufferedReader(
                new InputStreamReader(new BOMInputStream(is)));
 
          String line = reader.readLine();
+         System.out.println("readFromInputStream");
+         int i = 0;
+         int source = -1;
+         IntArrayList vertexNeighbourhood = new IntArrayList();
 
          while (line != null) {
-            if (line.startsWith("#")) {
-               line = reader.readLine();
-               continue;
+            i++;
+            if (i % 10_000_000 == 0) {
+               System.out.println(i + " " + (System.currentTimeMillis() - start) / 1000.0 + "s");
             }
 
             StringTokenizer tokenizer = new StringTokenizer(line);
 
-            Vertex vertex = parseVertex(tokenizer);
-            int vertexId = vertex.getVertexId();
+            int vertexId = Integer.parseInt(tokenizer.nextToken());
 
             while (tokenizer.hasMoreTokens()) {
                Edge edge = parseEdge(tokenizer, vertexId);
-               addEdge(edge);
-            }
+               //addEdge(edge);
 
+               numEdges++;
+               if (numVertices < edge.getDestinationId()) numVertices = edge.getDestinationId();
+               if (numVertices < edge.getSourceId()) numVertices = edge.getSourceId();
+
+               if (source != vertexId) {
+                  if (source != -1) {
+                     mainGraph.put(source, vertexNeighbourhood);
+
+                     vertexNeighbourhood = mainGraph.get(vertexId);
+                     if (vertexNeighbourhood == null) {
+                        vertexNeighbourhood = new IntArrayList();
+                     }
+                  }
+                  source = vertexId;
+               }
+               vertexNeighbourhood.add(edge.getDestinationId());
+
+               ensureCanStoreNewVertices(numVertices);
+               VertexNeighbourhood vertexNeighbourhood1 = vertexNeighborhoods[edge.getDestinationId()];
+               if (vertexNeighbourhood1 == null) {
+                  vertexNeighbourhood1 = createVertexNeighbourhood();
+                  vertexNeighborhoods[edge.getDestinationId()] = vertexNeighbourhood1;
+               }
+
+               vertexNeighbourhood1.addEdge(edge.getSourceId(), edge.getEdgeId());
+            }
             line = reader.readLine();
          }
-
+         //the last one
+         mainGraph.put(source, vertexNeighbourhood);
          reader.close();
+         buildSortedNeighborhood();
       } catch (IOException e) {
          throw new RuntimeException(e);
       }
    }
 
-   @Override
-   protected Vertex parseVertex(StringTokenizer tokenizer) {
-      int vertexId = Integer.parseInt(tokenizer.nextToken());
 
-      int vertexIdx = vertexIdMap.get(vertexId);
-      if (vertexIdx == -1) {
-         vertexIdx = vertexIdMap.size();
-         vertexIdMap.put(vertexId, vertexIdx);
-         Vertex vertex = createVertex(vertexIdx, vertexId, 1);
-         addVertex(vertex);
-         return vertex;
-      } else {
-         return vertexIndexF[vertexIdx];
+   @Override
+   public void buildSortedNeighborhood() {
+      for (int i : mainGraph.keySet()) {
+         IntArrayList vertexNeighbourhood = mainGraph.get(i);
+         vertexNeighbourhood.sort();
+         mainGraph.put(i, vertexNeighbourhood);
       }
    }
 
    @Override
-   protected Edge parseEdge(StringTokenizer tokenizer, int vertexId) {
-      Vertex neighborVertex = parseVertex(tokenizer);
-      int neighborId = neighborVertex.getVertexId();
+   public void removeCliques(List<IntArrayList> cliques) {
+      for (IntArrayList clique : cliques) {
+         for (int i = 0; i < clique.size(); i++) {
+            int from = clique.getUnchecked(i);
+            IntArrayList vertexNeighbourhood = mainGraph.get(from);
+            IntArrayList vertexNeighbourhoodNew = new IntArrayList();
+            if (vertexNeighbourhood != null) {
+               IntCursor c = vertexNeighbourhood.cursor();
+               while (c.moveNext()) {
+                  if (!clique.contains(c.elem())) {
+                     vertexNeighbourhoodNew.add(c.elem());
+                  } else {
+                     //System.out.println("REMOVE " + from + " " + c.elem());
+                  }
+               }
+               mainGraph.put(from, vertexNeighbourhoodNew);
+            }
 
-      if (!isEdgeLabelled) {
-         int from, to;
-         if (vertexId < neighborId) {
-            from = vertexId;
-            to = neighborId;
-         } else {
-            from = neighborId;
-            to = vertexId;
+//            if (vertexNeighbourhoodNew.size() == 0) {
+//               //remove neighborhood
+//               vertexNeighborhoods[from] = null;
+//               System.out.println("REMOVE ALL vertexNeighborhoods");
+//            } else {
+//               //TODO : rebuild ReversedVertexNeighbours?
+//               IntSet s = getReversedVertexNeighbours(from);
+//               IntCursor cSet = s.getInternalSet().cursor();
+//               while (cSet.moveNext()) {
+//                  if (clique.contains(cSet.elem())) {
+//                     System.out.println("REMOVE Rev " + from + " " + cSet.elem());
+//                     cSet.remove();
+//
+//                  }
+//               }
+//            }
+
          }
-         return createEdge(from, to);
-      } else {
-         throw new RuntimeException(
-               "Edge label is not allowed in edge list format");
       }
+
+// TODO rebuild state?
+
+//      ensureCanStoreNewVertices(numVertices);
+//
+//      for (int i : mainGraph.keySet()) {
+//         IntArrayList vertexNeighbourhood = mainGraph.get(i);
+//         IntCursor c = vertexNeighbourhood.cursor();
+//         while (c.moveNext()) {
+//            Edge edge = createEdge(i, c.elem());
+//            VertexNeighbourhood vertexNeighbourhood1 = vertexNeighborhoods[edge.getDestinationId()];
+//            if (vertexNeighbourhood1 == null) {
+//               vertexNeighbourhood1 = createVertexNeighbourhood();
+//               vertexNeighborhoods[edge.getDestinationId()] = vertexNeighbourhood1;
+//            }
+//            vertexNeighbourhood1.addEdge(edge.getSourceId(), edge.getEdgeId());
+//         }
+//      }
+   }
+
+   @Override
+   protected Edge parseEdge(StringTokenizer tokenizer, int vertexId) {
+      int neighborId = Integer.parseInt(tokenizer.nextToken());
+      return createEdge(vertexId, neighborId);
    }
 }

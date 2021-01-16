@@ -73,7 +73,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
   def withNewConfig(key: String, value: Any): SparkConfiguration[E] = {
     withNewConfig(Map(key -> value))
   }
-  
+
   /**
    * Sets a few configurations (immutable)
    */
@@ -90,7 +90,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
   def withoutConfig(key: String): SparkConfiguration[E] = {
     withoutConfig(Set(key))
   }
-  
+
   /**
    * Unsets a few configurations (immutable)
    */
@@ -108,7 +108,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
     : SparkConfiguration[E] = {
     withNewConfig (SparkConfiguration.COMPUTATION_CONTAINER, computation)
   }
-  
+
   /**
    * Sets a new master computation in this configuration (immutable)
    */
@@ -160,7 +160,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
     val conf = new SparkConf().
       setAppName ("fractal Master Execution Engine").
       setMaster (sparkMaster)
-        
+
     conf.set ("spark.executor.memory", getString("worker_memory", "1g"))
     conf.set ("spark.driver.memory", getString("worker_memory", "1g"))
 
@@ -175,7 +175,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
 
       case standaloneUrl : String if standaloneUrl startsWith "spark://" =>
         conf.set ("spark.cores.max",
-          (getInteger("num_workers", 1) * 
+          (getInteger("num_workers", 1) *
             getInteger("num_compute_threads", 1)).toString)
 
       case _ =>
@@ -193,9 +193,12 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
     confs.get(SparkConfiguration.COMPUTATION_CONTAINER) match {
       case Some(cc: ComputationContainer[_]) =>
         // cc.shallowCopy().asInstanceOf[Computation[E]]
+        val startTag = System.currentTimeMillis
+        cc.setRoot()
         val bytes = SparkConfiguration.serialize(cc)
-        SparkConfiguration.deserialize[Computation[E]](bytes)
-
+        val newcc = SparkConfiguration.deserialize[Computation[E]](bytes)
+        val elapsedTag = System.currentTimeMillis - startTag
+        newcc
       case Some(c) =>
         throw new RuntimeException (s"Invalid computation type: ${c}")
 
@@ -290,7 +293,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
 
     // info period
     updateIfExists ("info_period", INFO_PERIOD)
-    
+
     // computation classes
     updateIfExists ("master_computation", CONF_MASTER_COMPUTATION_CLASS)
     updateIfExists ("computation", CONF_COMPUTATION_CLASS)
@@ -335,7 +338,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
   def initializeWithTag(isMaster: Boolean): Unit = synchronized {
     initialize(isMaster)
     if (!tagApplied) {
-      
+
       val startTag = System.currentTimeMillis
 
       val ret = (confs.get("vtag"), confs.get("etag")) match {
@@ -350,18 +353,18 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
       val elapsedTag = System.currentTimeMillis - startTag
 
       if (ret > 0) {
-        logInfo (s"GraphTagging took ${elapsedTag} return=${ret}")
+        logWarning (s"GraphTagging took ${elapsedTag} return=${ret}")
       }
 
       val startFilter = System.currentTimeMillis
 
-      //if (!confs.contains("vfilter")) {
+      if (!confs.contains("vfilter")) {
         getMainGraph[MainGraph[_,_]].undoVertexFilter()
-      //}
-      
-      //if (!confs.contains("efilter")) {
+      }
+
+      if (!confs.contains("efilter")) {
         getMainGraph[MainGraph[_,_]].undoEdgeFilter()
-      //}
+      }
 
       def filterVertices[V,E](graph: MainGraph[V,E],
           vpred: Predicate[_]): Int = {
@@ -392,10 +395,10 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
       }
 
       val elapsedFilter = System.currentTimeMillis - startFilter
-      System.gc()
+      //System.gc()
 
       if (removedVertices + removedEdges > 0) {
-        logInfo (s"GraphFiltering took ${elapsedFilter} ms" +
+        logWarning(s"GraphFiltering took ${elapsedFilter} ms" +
           s" removedVertices=${removedVertices} removedEdges=${removedEdges}")
       }
 
@@ -410,10 +413,10 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
     initialize(isMaster)
     if (!tagApplied) {
       val start = System.currentTimeMillis
-      val ret = getMainGraph[MainGraph[_,_]].filter(vtag, etag)
-      System.gc()
+      //val ret = getMainGraph[MainGraph[_,_]].filter(vtag, etag)
+      //System.gc()
       val elapsed = System.currentTimeMillis - start
-      logInfo (s"GraphTagging took ${elapsed} ms. Return: ${ret}")
+      logWarning( s"GraphTagging took ${elapsed} ms")
       tagApplied = true
     }
   }
@@ -454,7 +457,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
     } else if (!isInitialized) {
       initializeInstance(!isMaster)
     }
-    
+
     if (getMainGraph == null || !isMainGraphRead()) {
       val graph = createGraph()
       setMainGraph(graph)
@@ -478,7 +481,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
   private def initializeInstance(shouldSetGraph: Boolean = true): Unit = {
 
     fixAssignments
-    
+
     // periodic information about execution
     infoPeriod = getLong(INFO_PERIOD, INFO_PERIOD_DEFAULT)
 
@@ -496,7 +499,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
         CONF_MASTER_COMPUTATION_CLASS_DEFAULT).
       asInstanceOf[Class[_ <: MasterComputation]]
     )
-    
+
     setComputationClass (
       getClass (CONF_COMPUTATION_CLASS, CONF_COMPUTATION_CLASS_DEFAULT).
       asInstanceOf[Class[_ <: Computation[E]]]
@@ -511,7 +514,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
       getClass (CONF_ENUMERATOR_CLASS, CONF_ENUMERATOR_CLASS_DEFAULT).
       asInstanceOf[Class[_ <: SubgraphEnumerator[E]]]
     )
-    
+
     isGraphMulti = getBoolean(CONF_MAINGRAPH_MULTIGRAPH,
       CONF_MAINGRAPH_MULTIGRAPH_DEFAULT)
 
@@ -543,7 +546,10 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
     getMainGraph[MainGraph[_,_]].synchronized {
       if (!isMainGraphRead) {
         logInfo ("MainGraph is empty, gonna try reading it")
+        val initStart = System.currentTimeMillis
         readMainGraph()
+        logWarning(s"readMainGraph took ${(System.currentTimeMillis - initStart) / 1000}s")
+
         graphRead = true
       }
     }
@@ -575,7 +581,7 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
       case Some((barrier, finalAggStorage)) if barrier.get == 1 =>
         barrier.decrementAndGet
         finalAggStorages.remove(name)
-        
+
         logInfo(s"FinalLocalAggregationStorage name=${name}" +
           s" step=${step}" +
           s" taskCounter=${taskCounter()}" +
@@ -608,13 +614,13 @@ case class SparkConfiguration[E <: Subgraph](confs: Map[String,Any])
 
   override def getInteger(key: String, defaultValue: Integer) =
     getValue(key, defaultValue).asInstanceOf[Int]
-  
+
   override def getLong(key: String, defaultValue: java.lang.Long) =
     getValue(key, defaultValue).asInstanceOf[Long]
 
   override def getString(key: String, defaultValue: String) =
     getValue(key, defaultValue).asInstanceOf[String]
-  
+
   override def getBoolean(key: String, defaultValue: java.lang.Boolean) = {
     val value = getValue(key, defaultValue)
     if (value.isInstanceOf[java.lang.Boolean]) {

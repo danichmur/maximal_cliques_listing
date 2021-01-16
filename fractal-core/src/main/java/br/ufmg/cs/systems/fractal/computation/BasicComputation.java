@@ -5,9 +5,12 @@ import br.ufmg.cs.systems.fractal.conf.Configuration;
 import br.ufmg.cs.systems.fractal.graph.MainGraph;
 import br.ufmg.cs.systems.fractal.pattern.Pattern;
 import br.ufmg.cs.systems.fractal.subgraph.Subgraph;
+import br.ufmg.cs.systems.fractal.util.Pair;
 import com.koloboke.collect.IntCollection;
 import org.apache.hadoop.io.Writable;
 import org.apache.log4j.Logger;
+
+import java.util.List;
 
 public abstract class BasicComputation<S extends Subgraph>
       implements Computation<S>, java.io.Serializable {
@@ -105,7 +108,7 @@ public abstract class BasicComputation<S extends Subgraph>
     }
 
     @Override
-    public final long compute(S subgraph) {
+    public final ComputationResults<S> compute(S subgraph) {
       subgraphEnumerator.set(this, subgraph);
       return processCompute(expandCompute(subgraph));
     }
@@ -187,6 +190,12 @@ public abstract class BasicComputation<S extends Subgraph>
   @Override
     public SubgraphEnumerator<S> getSubgraphEnumerator() {
        return this.subgraphEnumerator;
+    }
+
+    @Override
+    public void setSubgraphEnumerator(SubgraphEnumerator<S> s) {
+        subgraphEnumerator = s;
+
     }
 
     @Override

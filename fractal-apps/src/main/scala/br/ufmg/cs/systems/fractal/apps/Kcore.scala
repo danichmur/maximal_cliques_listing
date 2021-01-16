@@ -52,7 +52,7 @@ object Kcore extends Logging {
     val startTimeMillis = System.currentTimeMillis()
 
     // TODO: edgeListFile input format is completely different from Fractal input format :(
-    val ygraph=GraphLoader.edgeListFile(
+    val ygraph = GraphLoader.edgeListFile(
       sc,
       path,
       canonicalOrientation = true,

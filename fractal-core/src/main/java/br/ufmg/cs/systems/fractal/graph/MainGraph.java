@@ -1,8 +1,12 @@
 package br.ufmg.cs.systems.fractal.graph;
 
 import br.ufmg.cs.systems.fractal.util.collection.AtomicBitSetArray;
+import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
+import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.collection.ReclaimableIntCollection;
 import com.koloboke.collect.IntCollection;
+
+import java.util.List;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
@@ -42,7 +46,9 @@ public interface MainGraph<V,E> {
 
     VertexNeighbourhood getVertexNeighbourhood(int vertexId);
 
-    IntCollection getVertexNeighbours(int vertexId);
+    IntArrayList getVertexNeighbours(int vertexId);
+    IntSet getReversedVertexNeighbours(int vertexId);
+    void cleanReversedNeighbourhood();
 
     boolean isEdgeLabelled();
 
@@ -65,5 +71,11 @@ public interface MainGraph<V,E> {
     int filter(AtomicBitSetArray vtag, AtomicBitSetArray etag);
 
     void buildSortedNeighborhood();
+
+    void removeLowers(int i);
+
+    void closeMap();
+
+    void removeCliques(List<IntArrayList> cliques);
 
 }

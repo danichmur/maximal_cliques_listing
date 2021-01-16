@@ -168,8 +168,7 @@ public class VertexInducedSubgraph extends BasicSubgraph {
          int existingVertexId = vertices.getUnchecked(i);
 
          updateEdgesConsumer.reset();
-         configuration.getMainGraph().forEachEdgeId(existingVertexId,
-               newVertexId, updateEdgesConsumer);
+         configuration.getMainGraph().forEachEdgeId(existingVertexId, newVertexId, updateEdgesConsumer);
          addedEdges += updateEdgesConsumer.getNumAdded();
       }
 

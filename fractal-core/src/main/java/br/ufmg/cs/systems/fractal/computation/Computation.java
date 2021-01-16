@@ -4,15 +4,18 @@ import br.ufmg.cs.systems.fractal.aggregation.AggregationStorage;
 import br.ufmg.cs.systems.fractal.conf.Configuration;
 import br.ufmg.cs.systems.fractal.pattern.Pattern;
 import br.ufmg.cs.systems.fractal.subgraph.Subgraph;
+import br.ufmg.cs.systems.fractal.util.Pair;
 import com.koloboke.collect.IntCollection;
 import org.apache.hadoop.io.Writable;
+
+import java.util.List;
 
 public interface Computation<S extends Subgraph> {
 
     // {{{ initialization
     void init(Configuration<S> config);
     void initAggregations(Configuration<S> config);
-    long compute(S Subgraph);
+    ComputationResults<S> compute(S Subgraph);
     Computation<S> nextComputation();
     void finish();
     // }}}
@@ -20,7 +23,7 @@ public interface Computation<S extends Subgraph> {
     // {{{ runtime
     SubgraphEnumerator<S> expandCompute(S Subgraph);
     IntCollection getPossibleExtensions(S Subgraph);
-    long processCompute(SubgraphEnumerator<S> expansions);
+    ComputationResults<S> processCompute(SubgraphEnumerator<S> expansions);
     boolean filter(S Subgraph);
     void process(S Subgraph);
     boolean filter(S existingSubgraph, int newWord);
@@ -62,6 +65,9 @@ public interface Computation<S extends Subgraph> {
     int getDepth();
 
     SubgraphEnumerator<S> getSubgraphEnumerator();
+
+    void setSubgraphEnumerator(SubgraphEnumerator<S> s);
+
     SubgraphEnumerator<S> forkEnumerator(Computation<S> computation);
 
     Class<? extends Subgraph> getSubgraphClass();

@@ -492,10 +492,7 @@ public class Configuration<O extends Subgraph> implements Serializable {
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException("Could not read graph properties", e);
         } catch (InvocationTargetException e) {
-           if (e.getTargetException() instanceof IOException) {
-              LOG.warn("Graph properties file not found: " +
-                    getMainGraphPropertiesPath());
-           } else {
+           if (!(e.getTargetException() instanceof IOException)) {
               throw new RuntimeException("Could not read graph properties", e);
            }
         }
