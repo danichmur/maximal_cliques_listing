@@ -128,24 +128,36 @@ public class EdgeListGraph<V,E> extends BasicMainGraph<V,E> {
          for (int i = 0; i < clique.size(); i++) {
             int from = clique.getUnchecked(i);
             IntArrayList vertexNeighbourhood = mainGraph.get(from);
+            IntArrayList vertexNeighbourhoodNew = new IntArrayList();
             if (vertexNeighbourhood != null) {
-               IntArrayList vertexNeighbourhoodNew = new IntArrayList();
                IntCursor c = vertexNeighbourhood.cursor();
                while (c.moveNext()) {
                   if (!clique.contains(c.elem())) {
                      vertexNeighbourhoodNew.add(c.elem());
+                  } else {
+                     //System.out.println("REMOVE " + from + " " + c.elem());
                   }
                }
                mainGraph.put(from, vertexNeighbourhoodNew);
             }
-            //TODO : rebuild ReversedVertexNeighbours?
-            IntSet s = getReversedVertexNeighbours(from);
-            IntCursor cSet = s.getInternalSet().cursor();
-            while (cSet.moveNext()) {
-               if (clique.contains(cSet.elem())) {
-                  cSet.remove();
-               }
-            }
+
+//            if (vertexNeighbourhoodNew.size() == 0) {
+//               //remove neighborhood
+//               vertexNeighborhoods[from] = null;
+//               System.out.println("REMOVE ALL vertexNeighborhoods");
+//            } else {
+//               //TODO : rebuild ReversedVertexNeighbours?
+//               IntSet s = getReversedVertexNeighbours(from);
+//               IntCursor cSet = s.getInternalSet().cursor();
+//               while (cSet.moveNext()) {
+//                  if (clique.contains(cSet.elem())) {
+//                     System.out.println("REMOVE Rev " + from + " " + cSet.elem());
+//                     cSet.remove();
+//
+//                  }
+//               }
+//            }
+
          }
       }
 

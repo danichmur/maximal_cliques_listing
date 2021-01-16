@@ -290,40 +290,35 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           val N = c.getConfig.getInteger("top_N", 1)
           val graph = c.getConfig.getMainGraph[MainGraph[_, _]]()
 
-          var foundedCliques = Refrigerator.result.size
+          val resize = () => {
+            Refrigerator.neigh_sizes = KClistEnumerator.neigboursSizes
+            Refrigerator.size = Refrigerator.neigh_sizes.get(Refrigerator.neigh_sizes.size - Refrigerator.idx) + 1
 
+            KClistEnumerator.size = Refrigerator.size
+            logWarning(s"Refrigerator size: ${Refrigerator.size.toString};")
+          }
+
+          KClistEnumerator.getColors(graph)
+
+          var first = true
           val repeatOrClean = () => {
             var continue = true
             if (Refrigerator.result.size == N) {
               continue = false
-            } else if (Refrigerator.result.size > foundedCliques) {
-              //aha, we got new cliques!
-              foundedCliques = Refrigerator.result.size
-
-              val start = System.currentTimeMillis
-              graph.removeCliques(Refrigerator.result)
-              logWarning(s"removeCliques time: ${(System.currentTimeMillis - start) / 1000.0}s;")
-
-              KClistEnumerator.dropColors()
             } else {
               //well, there are no cliques, reduce clique size and try again
               Refrigerator.inc()
-            }
-            if (continue) {
-              iter.clearDag()
-              iter.resetCursor()
-
-              KClistEnumerator.getColors(graph)
-              Refrigerator.neigh_sizes = KClistEnumerator.neigboursSizes
-              Refrigerator.size = Refrigerator.neigh_sizes.get(Refrigerator.neigh_sizes.size - Refrigerator.idx) + 1
-              logWarning(s"Refrigerator size: ${Refrigerator.size.toString}; iter ${iter.getDag.keySet()}; sub ${iter.getSubgraph.getNumVertices}")
-
-              KClistEnumerator.size = Refrigerator.size
+              resize()
             }
 
-            if (Refrigerator.size < 4) {
+            if (Refrigerator.size < 6 && !first) {
               continue = false
             }
+
+            iter.clearDag()
+            iter.resetCursor()
+
+            first = false
             continue
           }
 
@@ -357,11 +352,21 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
 
             val addClique = (s : S) => {
               Refrigerator.result = s.getVertices :: Refrigerator.result
-              if (Refrigerator.result.size >= N) {
+              if (Refrigerator.result.size == N) {
                 done = true
+              } else {
+                repeat = false
+                logWarning("FOUND!")
+                logWarning(s.getVertices.toString)
+                val start = System.currentTimeMillis
+                graph.removeCliques(List(s.getVertices))
+                logWarning(s"removeCliques time: ${(System.currentTimeMillis - start) / 1000.0}s;")
+                KClistEnumerator.dropColors()
+                KClistEnumerator.getColors(graph)
+
+                Refrigerator.idx = 1
+                resize()
               }
-              repeat = false
-              logWarning("FOUND!")
             }
 
             val repeatLoop = () => {
@@ -537,8 +542,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
         val prefixSize = iter.getSubgraph.getVertices.size()
         val maxPossibleSize = prefixSize + max(0, iter.getAdditionalSize - 1)
 
-        val iterate_start = System.currentTimeMillis
-
         while (!(found && getOnlyFirst) && iter.hasNext) {
           val u = iter.nextElem()
 
@@ -621,7 +624,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
             }
           }
         }
-        val iterate_time = System.currentTimeMillis - iterate_start
 
         if (prefixSize != 0 && !extendNeeded && result.size() > 0) {
           //let's extend, because we have only one appropriate vertex
@@ -638,7 +640,6 @@ class SparkFromScratchMasterEngine[S <: Subgraph](
           result.get(0).subgraph = subgraph
           result.get(0).setResultType(ResultType.REGULAR)
         }
-        log += s"\niterate time ${iterate_time / 1000.0}s"
         iter.extend = true
         if (result.size() > 0) logWarning(s"Length: ${result.size()}")
         if (log != "") logWarning(log)

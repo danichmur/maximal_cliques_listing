@@ -2,6 +2,7 @@ package br.ufmg.cs.systems.fractal.gmlib.clique;
 
 import br.ufmg.cs.systems.fractal.computation.SubgraphEnumerator;
 import br.ufmg.cs.systems.fractal.conf.Configuration;
+import br.ufmg.cs.systems.fractal.graph.BasicMainGraph;
 import br.ufmg.cs.systems.fractal.graph.MainGraph;
 import br.ufmg.cs.systems.fractal.graph.Vertex;
 import br.ufmg.cs.systems.fractal.graph.VertexNeighbourhood;
@@ -10,6 +11,7 @@ import br.ufmg.cs.systems.fractal.util.Utils;
 import br.ufmg.cs.systems.fractal.util.collection.IntArrayList;
 import br.ufmg.cs.systems.fractal.util.collection.IntSet;
 import br.ufmg.cs.systems.fractal.util.pool.IntArrayListPool;
+import com.esotericsoftware.minlog.Log;
 import com.koloboke.collect.IntCollection;
 import com.koloboke.collect.IntCursor;
 import com.koloboke.collect.map.IntObjCursor;
@@ -18,12 +20,14 @@ import com.koloboke.collect.map.hash.HashIntObjMaps;
 import com.koloboke.function.IntObjConsumer;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
+import org.apache.log4j.Logger;
 
 import java.io.*;
 import java.sql.Array;
 import java.util.*;
 
 public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> implements Serializable {
+    private static final Logger LOG = Logger.getLogger(BasicMainGraph.class);
 
     // TODO SynchronizedDynamicGraphV3 dag;
     // current clique DAG
@@ -38,7 +42,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
     public static int rebuilds = 0;
     public static int graphCounter = 0;
 
-    public static int EXTENDS_THRESHOLD = 126; //todo
+    public static int EXTENDS_THRESHOLD = 26; //todo
 
     private static ChronicleMap<String, byte[]> iterStorage = null;
 
@@ -393,8 +397,7 @@ public class KClistEnumerator<S extends Subgraph> extends SubgraphEnumerator<S> 
 
         //TODO
         //graph.cleanReversedNeighbourhood();
-
-        System.out.println("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s; " + "neigboursColorsCount " + (System.currentTimeMillis() - time1) / 1000.0 + "s");
+        LOG.warn("Coloring: " + (System.currentTimeMillis() - time) / 1000.0 + "s; " + "neigboursColorsCount " + (System.currentTimeMillis() - time1) / 1000.0 + "s");
     }
 
     public static void countAndSetColors(GraphInner graph) {

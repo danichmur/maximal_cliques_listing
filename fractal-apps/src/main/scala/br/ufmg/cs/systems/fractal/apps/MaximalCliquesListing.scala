@@ -70,14 +70,18 @@ object MaximalCliquesListing extends Logging {
     //val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/00test.txt")
     //val (s, graphPath) = (3, "/Users/danielmuraveyko/Desktop/els2/01test.txt")
    // val (s, graphPath) = (4, "/Users/danielmuraveyko/Desktop/els2/02test.txt")
-    //val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
-    val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
+
+   // val (s, graphPath) = (16, "/Users/danielmuraveyko/Desktop/els2/for_kcore_4")
+
+    //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1200")
     //val (s, graphPath) = (4800, "/Users/danielmuraveyko/Desktop/els2/127_test.txt")
 
 
     //val (s, graphPath) = (6000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_1500")
     //val (s, graphPath) = (8000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_2000")
-    //val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
+
+    val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/els2/for_kcore_3000")
+    //val (s, graphPath) = (12000, "/Users/danielmuraveyko/Desktop/for_kcore_3000_cutted")
 
     val time = System.currentTimeMillis()
 
@@ -102,10 +106,10 @@ object MaximalCliquesListing extends Logging {
 
     logWarning(s"graphs: ${KClistEnumerator.graphCounter}; extends: ${KClistEnumerator.count}; dumps: ${KClistEnumerator.dumps}; loads: ${KClistEnumerator.loads}; rebuilds: ${KClistEnumerator.rebuilds}")
     logWarning(s"Time: ${(System.currentTimeMillis() - time) / 1000.0}s\n")
-
+    logWarning(s"Found ${Refrigerator.result.size} cliques")
     for (r <- Refrigerator.result) {
-      println(r)
-      //println(r.size())
+      logWarning(r.toString)
+      println(r.size())
     }
     cleanDataFolder(dataPath)
 
